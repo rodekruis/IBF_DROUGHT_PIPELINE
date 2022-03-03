@@ -1,4 +1,4 @@
-# IBF-pipeline Drought
+# IBF-pipeline Kenya Drought
 
 This pipeline is creating and uploading forecast data to the [IBF-system](https://github.com/rodekruis/IBF-system). This means that to set this pipeline up meaningfully, you must also set up an instance of the IBF-system.
 
@@ -49,8 +49,8 @@ Getting its secrets from Azure Key Vault.
 
 ## Versions
 You can find the versions in the [tags](https://github.com/rodekruis/IBF_DROUGHT_PIPELINE/tags) of the commits. See below table to find which version of the pipeline corresponds to which version of IBF-Portal.
-| Flood Pipeline version  | IBF-Portal version | Changes |
+|Kenya Drought Pipeline version  | IBF-Portal version | Changes |
 | --- | --- | --- |
-| v0.0.1 | 0.103.1 | initial number |
-| v0.1.0 | 0.129.0 | alert_threshold upload to API | 
-| v0.2.0 | 0.129.0 | rearranged and set up for github actions |
+| x | x | initial number |
+| x | x | alert_threshold upload to API | 
+| xx | xx | xx |
