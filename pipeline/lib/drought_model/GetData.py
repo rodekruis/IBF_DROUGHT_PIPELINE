@@ -181,7 +181,7 @@ class GetData:
         return {
             'amount': alert_threshold,
             'placeCode': population_affected['placeCode']
-        }        
+        }         
         
     def read_bulletin(self):        
         dfs = tabula.read_pdf(self.FILE_PATH, pages='all',stream=True)
