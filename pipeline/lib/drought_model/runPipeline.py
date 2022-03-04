@@ -31,11 +31,6 @@ logger = logging.getLogger(__name__)
 def main():
     startTime = time.time() 
     logger.info(str(datetime.datetime.now()))
-    #gdd.download_file_from_google_drive(file_id=GOOGLE_DRIVE_DATA_URL,dest_path='./data/data_flood.zip',overwrite=True,unzip=True)
-    #logger.info('finished data download')
-    #logger.info(str(datetime.datetime.now()))
-
-
     try:
         for COUNTRY_CODE in COUNTRY_CODES:
             logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')
@@ -48,18 +43,19 @@ def main():
             dynamic_draought_data =fc.getdata.processing()               
             logger.info('--------Finished data Processing')
 
-            fc.exposure.callAllExposure()
-            logger.info('--------Finished exposure')
+            fc.getdata.callAllExposure()  
+            logger.info('--------Finished exposure data Processing')
             fc.db.upload()
             logger.info('--------Finished upload')
-            fc.db.sendNotification()
-            logger.info('--------Finished notification')
-except Exception as e:
-    logger.error("Flood Data PIPELINE ERROR")
-    logger.error(e)
-elapsedTime = str(time.time() - startTime)
-logger.info(str(elapsedTime))
+            #fc.db.sendNotification()
+            #logger.info('--------Finished notification')
+    except Exception as e:
+        logger.error("Drought Data PIPELINE ERROR")
+        logger.error(e)
+
+    elapsedTime = str(time.time() - startTime)
+    logger.info(str(elapsedTime))
 
 
 if __name__ == "__main__":
-main()
+    main()

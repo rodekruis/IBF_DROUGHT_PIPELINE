@@ -51,6 +51,6 @@ Getting its secrets from Azure Key Vault.
 You can find the versions in the [tags](https://github.com/rodekruis/IBF_DROUGHT_PIPELINE/tags) of the commits. See below table to find which version of the pipeline corresponds to which version of IBF-Portal.
 |Kenya Drought Pipeline version  | IBF-Portal version | Changes |
 | --- | --- | --- |
-| x | x | initial number |
-| x | x | alert_threshold upload to API | 
-| xx | xx | xx |
+| 1 | 01 | initial number |
+| 1 | 02 | alert_threshold upload to API | 
+ 

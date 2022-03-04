@@ -11,7 +11,6 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
  
- 
 
 class DatabaseManager:
 
@@ -68,6 +67,7 @@ class DatabaseManager:
                 except:
                     logger.info(f'failed to Upload calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
                     pass
+
     def uploadCalculatedAffected(self):
         for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
             for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
@@ -92,37 +92,14 @@ class DatabaseManager:
                 body['disasterType'] = self.getDisasterType()
                 #body['adminLevel'] = self.admin_level
                 self.apiPostRequest('admin-area-dynamic-data/exposure', body=body)
-            logger.info(f'Uploaded calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
-                                    
+            logger.info(f'Uploaded calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))                                
                     
-
-
     def uploadRasterFile(self):
         disasterType = self.getDisasterType()
         rasterFile = RASTER_OUTPUT + '0/flood_extents/flood_extent_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + '.tif'
         files = {'file': open(rasterFile,'rb')}
         self.apiPostRequest('admin-area-dynamic-data/raster/' + disasterType, files=files)
         logger.info(f'Uploaded raster-file: {rasterFile}')
-
-
-    def uploadTriggerPerStation(self):
-        df = pd.read_json(self.triggerFolder +
-                          'triggers_rp_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + ".json", orient='records')
-        dfStation = pd.DataFrame(index=df.index)
-        dfStation['stationCode'] = df['stationCode']
-        dfStation['forecastLevel'] = df['fc'].astype(np.float64,errors='ignore')
-        dfStation['forecastProbability'] = df['fc_prob'].astype(np.float64,errors='ignore')
-        dfStation['forecastTrigger'] = df['fc_trigger'].astype(np.int32,errors='ignore')
-        dfStation['forecastReturnPeriod'] = df['fc_rp'].astype(np.int32,errors='ignore')
-        dfStation['triggerLevel'] = df['triggerLevel'].astype(np.int32,errors='ignore')
-        stationForecasts = json.loads(dfStation.to_json(orient='records'))
-        body = {
-            'countryCodeISO3': self.countryCodeISO3,
-            'leadTime': self.leadTimeLabel,
-            'stationForecasts': stationForecasts
-        }
-        self.apiPostRequest('glofas-stations/triggers', body=body)
-        logger.info('Uploaded triggers per station')
 
     def uploadTriggersPerLeadTime(self):
         with open(self.triggerFolder +

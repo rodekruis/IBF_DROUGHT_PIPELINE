@@ -21,15 +21,10 @@ class Forecast:
         self.levels = SETTINGS[countryCodeISO3]['levels']
 
         admin_area_json = self.db.apiGetRequest('admin-areas/raw',countryCodeISO3=countryCodeISO3)
-        #admin_area_json1['geometry'] = admin_area_json1.pop('geom')
 
         #print(admin_area_json)
         for index in range(len(admin_area_json)):
             admin_area_json[index]['geometry'] = admin_area_json[index]['geom']
-            #admin_area_json[index]['placeCodeParent'] = admin_area_json[index]['placeCodeParent'],
-            #admin_area_json[index]['pcode2'] = self.pcode2(admin_area_json[index]['placeCode']),
-            #admin_area_json[index]['admin_level'] = admin_area_json[index]['adminLevel'],
-            #admin_area_json[index]['placeCode'] = self.pcode(admin_area_json[index]['placeCode']),
             admin_area_json[index]['properties'] = {
                 'placeCode': admin_area_json[index]['placeCode'], 
                 'placeCodeParent': admin_area_json[index]['placeCodeParent'],                   
@@ -37,9 +32,7 @@ class Forecast:
                 'adminLevel': admin_area_json[index]['adminLevel']
                 }
                 
-
         df_admin=pd.DataFrame(admin_area_json) 
-        
         df_admin2=df_admin.filter(['adminLevel','placeCode','placeCodeParent'])
         df_list={}       
         max_iteration=self.admin_level+1
@@ -63,19 +56,9 @@ class Forecast:
         population_df=pd.DataFrame(population_df) 
 
         df_admin1=geopandas.GeoDataFrame.from_features(admin_area_json)
-        #self.admin_area_gdf2 = df_admin1
         df_admin1=df_admin1.query(f'adminLevel == {self.admin_level}')
-        self.admin_area_gdf = df_admin1#geopandas.GeoDataFrame.from_features(admin_area_json)
-        #df_admin=df_admin.filter(['placeCode','placeCodeParent'])
-        #population_df = pd.merge(population_df,df_admin,  how='left',left_on='placeCode', right_on = 'placeCode')
-        #print(population_df)
-        
-        #population_df=population_df.to_dict(orient='records')
-        self.population_total =population_df
+        self.admin_area_gdf = df_admin1
 
+        self.population_total =population_df
         #read glofas trigger levels from file
         self.getdata = GetData(leadTimeLabel,leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
-
-
-        #self.district_mapping = self.db.apiGetRequest('admin-areas/raw',countryCodeISO3=countryCodeISO3)
-        

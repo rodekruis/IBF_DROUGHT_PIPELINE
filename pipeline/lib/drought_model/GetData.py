@@ -50,17 +50,18 @@ class GetData:
         self.current_date = CURRENT_DATE.strftime('%Y%m%d')
 
     def processing(self):
-        spi_data=self.get_spi_data()
+
+        spi_data=self.get_spi_data()        
         #drought_indicators=self.read_bulletin()
         df=self.population_df
         df_spi = pd.merge(df,spi_data, how="left", on="placeCode")        
-        #df_total = pd.merge(df_spi,drought_indicators,how='left',left_on='placeCode', right_on = 'placeCode')
         df_spi['trigger']=df_spi['trigger'].fillna(0)
         df_spi['population_affected']=df_spi[['value','trigger']].apply(self.affected_people, axis="columns")
        
         return df_spi
         
     def callAllExposure(self):
+
         df_total = self.processing()
         drought_indicators=self.read_bulletin()
         for indicator, values in self.DYNAMIC_INDICATORS.items():
@@ -129,42 +130,7 @@ class GetData:
                 logger.info(f'failed to output for indicator: {indicator}')
                 pass
 
-            # if self.population_total:
-                # get_population_affected_percentage_ = functools.partial(self.get_population_affected_percentage, adm_level=adm_level)
-                # population_affected_percentage = list(map(get_population_affected_percentage_, df_stats_levl))
-                # #population_affected_percentage = list(map(self.get_population_affected_percentage, df_stats,adm_level))
- 
-                # population_affected_percentage_file_path = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
-                    # self.leadTimeLabel + '_' + self.countryCodeISO3 + '_admin_' + str(adm_level) + '_' + 'population_affected_percentage' + '.json'
-                    
-                # population_affected_percentage_records = {
-                    # 'countryCodeISO3': self.countryCodeISO3,
-                    # 'exposurePlaceCodes': population_affected_percentage, 
-                    # 'leadTime': self.leadTimeLabel,
-                    # 'dynamicIndicator': 'population_affected_percentage',
-                    # 'adminLevel': adm_level
-                # }
 
-                # with open(population_affected_percentage_file_path, 'w') as fp:
-                    # json.dump(population_affected_percentage_records, fp)
-
-                # define alert_threshold layer
-            # alert_threshold = list(map(self.get_alert_threshold, df_stats_levl))
-
-            # alert_threshold_file_path = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
-                # self.leadTimeLabel + '_' + self.countryCodeISO3 + '_admin_' + str(adm_level) + '_' + 'alert_threshold' + '.json'
-
-            # alert_threshold_records = {
-                # 'countryCodeISO3': self.countryCodeISO3,
-                # 'exposurePlaceCodes': alert_threshold,
-                # 'leadTime': self.leadTimeLabel,
-                # 'dynamicIndicator': 'alert_threshold',
-                # 'adminLevel': adm_level
-            # }
-
-            # with open(alert_threshold_file_path, 'w') as fp:
-                # json.dump(alert_threshold_records, fp)
-        
     def affected_people(self,df):
         x=df[0]
         y=df[1]
@@ -300,10 +266,7 @@ class GetData:
         for k,v in df_total.items():
             v=[item for item in v if len(item)>3]
             bulletin_updated[k]=v
- 
 
-        
-        
         df=self.ADMIN_AREA_GDF[['name','placeCode']]
       
         # join extracted data for the three indicators with admin layer 

@@ -6,10 +6,10 @@ UGA_URL='https://ibf-uganda.510.global/api/'
 ZMB_URL='https://ibf-test.510.global/api/'
 ETH_URL='https://ibf-test.510.global/api/'
 KEN_URL='https://ibf-test.510.global/api/'
-UGA_PASSWORD='password'#'jUWvHQJHkLmSjGmhsLS5NbH2F'  
-ZMB_PASSWORD='password'#'rp82pU8Qge6Yvu'
-ETH_PASSWORD='password'#'sLuE6V6ExyqEppZw'
-KEN_PASSWORD='password'#'MYLbumJeeEUu63be'
+UGA_PASSWORD='password' 
+ZMB_PASSWORD='password' 
+ETH_PASSWORD='password' 
+KEN_PASSWORD='password' 
 
 
 
