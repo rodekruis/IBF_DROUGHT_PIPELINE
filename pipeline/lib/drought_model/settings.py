@@ -83,16 +83,15 @@ SETTINGS = {"KEN": {
         'admin_level': 1,
         'levels':[1],
         'EXPOSURE_DATA_SOURCES': {
-            "population": {
+            "population_affected": {
                 "source": "population/hrsl_ken_pop_resized_100",
                 "rasterValue": 1
             }
         },
         'DYNAMIC_INDICATORS': {
-            "population_affected":"population",
-            "livestock_body_condition ":"livestock_condition ",
+            "livestock_body_condition":"livestock_body_condition",
             "vegetation_condition":"vegetation_condition",
-            "drought_phase_classification ":"drought_phase ",
+            "drought_phase_classification":"drought_phase_classification",
         }
     },
 

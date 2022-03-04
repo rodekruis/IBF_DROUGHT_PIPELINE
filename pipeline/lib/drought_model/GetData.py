@@ -41,6 +41,7 @@ class GetData:
         self.SPI_Threshold_Prob=SPI_Threshold_Prob
         self.population_df=population_total
         self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
+        self.EXPOSURE_DATA_SOURCES= SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
         
         if not os.path.exists(self.inputPath):
             os.makedirs(self.inputPath)
@@ -50,21 +51,37 @@ class GetData:
 
     def processing(self):
         spi_data=self.get_spi_data()
-        drought_indicators=self.read_bulletin()
+        #drought_indicators=self.read_bulletin()
         df=self.population_df
         df_spi = pd.merge(df,spi_data, how="left", on="placeCode")        
-        df_total = pd.merge(df_spi,drought_indicators,how='left',left_on='placeCode', right_on = 'placeCode')
-        df_total['trigger']=df_total['trigger'].fillna(0)
-        df_total['population']=df_total[['value','trigger']].apply(self.affected_people, axis="columns")
+        #df_total = pd.merge(df_spi,drought_indicators,how='left',left_on='placeCode', right_on = 'placeCode')
+        df_spi['trigger']=df_spi['trigger'].fillna(0)
+        df_spi['population_affected']=df_spi[['value','trigger']].apply(self.affected_people, axis="columns")
        
-        return df_total
+        return df_spi
         
     def callAllExposure(self):
         df_total = self.processing()
+        drought_indicators=self.read_bulletin()
         for indicator, values in self.DYNAMIC_INDICATORS.items():
+            df_stats_levl=drought_indicators[indicator]
+            self.statsPath=PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
+                        str(self.leadTimeValue) + '_' + self.countryCodeISO3 +'_admin_' +str(self.admin_level) + '_' + indicator + '.json'
+            result = {
+                'countryCodeISO3': self.countryCodeISO3,
+                'exposurePlaceCodes': df_stats_levl,
+                'leadTime': self.leadTimeLabel,
+                'dynamicIndicator': indicator,
+                'adminLevel': self.admin_level
+            }
+            
+            with open(self.statsPath, 'w') as fp:
+                json.dump(result, fp)
+        
+        for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
             try:
                 logger.info(f'indicator: {indicator}')
-                df_total['amount']=df_total[values]                
+                df_total['amount']=df_total[indicator]                
                 population_affected=df_total[['placeCode','amount']]        
                 stats=population_affected.to_dict(orient='records')
                 df_stats=pd.DataFrame(stats) 
@@ -79,14 +96,13 @@ class GetData:
                         df_stats_levl=df_stats_levl[['amount','placeCode']].to_dict(orient='records')
                         
                     self.statsPath = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
-                        self.leadTimeLabel + '_' + self.countryCodeISO3 +'_admin_' +str(adm_level) + '_' + indicator + '.json'
+                        str(self.leadTimeValue) + '_' + self.countryCodeISO3 +'_admin_' +str(adm_level) + '_' + indicator + '.json'
 
                     result = {
                         'countryCodeISO3': self.countryCodeISO3,
                         'exposurePlaceCodes': df_stats_levl,
                         'leadTime': self.leadTimeLabel,
                         'dynamicIndicator': indicator,# + '_affected',
-                        'disasterType':'drought',
                         'adminLevel': adm_level
                     }
                     
@@ -97,14 +113,13 @@ class GetData:
                         alert_threshold = list(map(self.get_alert_threshold, df_stats_levl))
 
                         alert_threshold_file_path = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
-                            self.leadTimeLabel + '_' + self.countryCodeISO3 + '_admin_' + str(adm_level) + '_' + 'alert_threshold' + '.json'
+                            str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adm_level) + '_' + 'alert_threshold' + '.json'
 
                         alert_threshold_records = {
                             'countryCodeISO3': self.countryCodeISO3,
                             'exposurePlaceCodes': alert_threshold,
                             'leadTime': self.leadTimeLabel,
                             'dynamicIndicator': 'alert_threshold',
-                            'disasterType':'drought',
                             'adminLevel': adm_level
                         }
 
@@ -153,7 +168,7 @@ class GetData:
     def affected_people(self,df):
         x=df[0]
         y=df[1]
-        return x*y    
+        return int(x*y)    
     def get_spi_data(self):
         with open(self.spiforecast) as file:
             ## the first two lines are not useful 
@@ -279,54 +294,73 @@ class GetData:
             else:
                 print('no data')
         df_total = {**df_vci, **df_cattle, **df_drought}            
-        indicator_file_path = PIPELINE_OUTPUT + 'calculated_affected/bulletin_df.json'
+          
         bulletin_updated={}
+        
         for k,v in df_total.items():
             v=[item for item in v if len(item)>3]
             bulletin_updated[k]=v
  
 
-        with open(indicator_file_path, 'w') as fp:
-            json.dump(bulletin_updated, fp)       
-            
         
         
         df=self.ADMIN_AREA_GDF[['name','placeCode']]
+      
         # join extracted data for the three indicators with admin layer 
+        dfvci={}
+
         for status in vci_satus.keys():
             print(vci_satus[status])
-            df2=pd.DataFrame(df_vci[status])
+            df2=pd.DataFrame(bulletin_updated[status])
             df2.columns=["name"]
             df2[status]=vci_satus[status]
             df = pd.merge(df, df2, how="left", on="name")
-        df['vegetation_condition'] = df[['Extreme','Severe','Moderate','Normal','Above_normal']].apply(np.nanmax, axis = 1)
+            df=df.fillna(0)
+        df['amount'] = df[['Extreme','Severe','Moderate','Normal','Above_normal']].apply(np.nanmax, axis = 1)        
+        df=df.groupby('placeCode').agg({'amount': 'max'})
+        df = df.astype(int)
+        df.reset_index(inplace=True)        
+        dfvci['vegetation_condition']=df[['placeCode','amount']].to_dict(orient='records')
         
-        df=df[['name','placeCode','vegetation_condition']]
-        
+        df=self.ADMIN_AREA_GDF[['name','placeCode']]
         for status in cattle_satus.keys():
             print(cattle_satus[status])
-            df2=pd.DataFrame(df_cattle[status])
+            df2=pd.DataFrame(bulletin_updated[status])
             df2.columns=["name"]
             df2[status]=cattle_satus[status]
             df = pd.merge(df, df2, how="left", on="name")
+            df=df.fillna(0)
             
-        df['livestock_condition'] = df[['poor','fair','good']].apply(np.nanmax, axis = 1)
+        df['amount'] = df[['poor','fair','good']].apply(np.nanmax, axis = 1)
+        df=df.groupby('placeCode').agg({'amount': 'max'})
+        df = df.astype(int)
+        df.reset_index(inplace=True) 
+        dfvci['livestock_body_condition']=df[['placeCode','amount']].to_dict(orient='records')
         
-        df=df[['name','placeCode','vegetation_condition','livestock_condition']]  
+  
         try:
+            df=self.ADMIN_AREA_GDF[['name','placeCode']]
             for status in drought_satus.keys():
                 print(drought_satus[status])
-                df2=pd.DataFrame(df_drought[status])
+                df2=pd.DataFrame(bulletin_updated[status])
                 df2.columns=["name"]
                 df2[status]=drought_satus[status]
-                df = pd.merge(df, df2, how="left", on="name")  
-            df['drought_phase'] = df[['normal','alarm','alert']].apply(np.nanmax, axis = 1)
-            df=df[['name','placeCode','vegetation_condition','livestock_condition','drought_phase']] 
+                df = pd.merge(df, df2, how="left", on="name") 
+                df=df.fillna(0)                
+            df['amount'] = df[['normal','alarm','alert']].apply(np.nanmax, axis = 1)
+            df=df.groupby('placeCode').agg({'amount': 'max'})
+            df = df.astype(int)
+            df.reset_index(inplace=True)        
+            dfvci['drought_phase_classification']=df[['placeCode','amount']].to_dict(orient='records')
+ 
             print('pass')
         except:
             print('failed')
         
         # remove duplicate entries
+        indicator_file_path = PIPELINE_OUTPUT + 'calculated_affected/dynamic_drought_indicators.json'
+        with open(indicator_file_path, 'w') as fp:
+            json.dump(dfvci, fp)  
         
-        df_bulletin= df#.groupby('placeCode').agg({'VCI_Status':np.nanmax,'Cattle_Status':np.nanmax,'Drought_Status':np.nanmax}).fillna(0)
+        df_bulletin= dfvci#.groupby('placeCode').agg({'VCI_Status':np.nanmax,'Cattle_Status':np.nanmax,'Drought_Status':np.nanmax}).fillna(0)
         return  df_bulletin

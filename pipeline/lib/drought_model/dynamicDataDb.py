@@ -17,9 +17,10 @@ class DatabaseManager:
 
     """ Class to upload and process data in the database """
 
-    def __init__(self, leadTimeLabel, countryCodeISO3,admin_level):
+    def __init__(self, leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level):
         self.countryCodeISO3 = countryCodeISO3
         self.leadTimeLabel = leadTimeLabel
+        self.leadTimeValue =leadTimeValue
         self.triggerFolder = PIPELINE_OUTPUT + "triggers_rp_per_station/"
         self.affectedFolder = PIPELINE_OUTPUT + "calculated_affected/"
         self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
@@ -29,10 +30,12 @@ class DatabaseManager:
         self.levels = SETTINGS[countryCodeISO3]['levels']
         self.admin_level = admin_level
 
+
     def upload(self):
         self.uploadalerTreshold()
         #self.uploadTriggerPerStation()
         self.uploadCalculatedAffected()
+        self.uploadCalculatedDynamicIndicators()
         #self.uploadRasterFile()
     
     def sendNotification(self):
@@ -48,15 +51,15 @@ class DatabaseManager:
 
     
     def getDisasterType(self):
-        disasterType = 'floods'
+        disasterType = 'drought'
         return disasterType
 
 
-    def uploadCalculatedAffected(self):
+    def uploadCalculatedDynamicIndicators(self):
         for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
             for indicator, values in self.DYNAMIC_INDICATORS.items():
                 try:
-                    with open(self.affectedFolder +'affected_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json') as json_file:
+                    with open(self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json') as json_file:
                         body = json.load(json_file)
                         body['disasterType'] = self.getDisasterType()
                         #body['adminLevel'] = self.admin_level
@@ -65,13 +68,26 @@ class DatabaseManager:
                 except:
                     logger.info(f'failed to Upload calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
                     pass
-                                    
+    def uploadCalculatedAffected(self):
+        for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
+            for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
+                try:
+                    with open(self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json') as json_file:
+                        body = json.load(json_file)
+                        body['disasterType'] = self.getDisasterType()
+                        #body['adminLevel'] = self.admin_level
+                        self.apiPostRequest('admin-area-dynamic-data/exposure', body=body)
+                    logger.info(f'Uploaded calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
+                except:
+                    logger.info(f'failed to Upload calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
+                    pass                                   
                     
 
     def uploadalerTreshold(self):
         indicator='alert_threshold'
-        for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
-            with open(self.affectedFolder +'affected_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json') as json_file:
+        for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1): 
+            trigger_file_path=self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json'
+            with open(trigger_file_path) as json_file:
                 body = json.load(json_file)
                 body['disasterType'] = self.getDisasterType()
                 #body['adminLevel'] = self.admin_level

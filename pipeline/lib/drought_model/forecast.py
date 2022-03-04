@@ -17,7 +17,7 @@ class Forecast:
         self.leadTimeValue = leadTimeValue
         self.admin_level = admin_level
         self.countryCodeISO3=countryCodeISO3
-        self.db = DatabaseManager(leadTimeLabel, countryCodeISO3,admin_level)      
+        self.db = DatabaseManager(leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level)      
         self.levels = SETTINGS[countryCodeISO3]['levels']
 
         admin_area_json = self.db.apiGetRequest('admin-areas/raw',countryCodeISO3=countryCodeISO3)
