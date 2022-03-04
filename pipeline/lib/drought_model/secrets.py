@@ -3,8 +3,8 @@
 ##################
  
 UGA_URL='https://ibf-uganda.510.global/api/'
-ZMB_URL='https://ibf-zambia.510.global/api/'
-ETH_URL='https://ibf-ethiopia.510.global/api/'
+ZMB_URL='https://ibf-test.510.global/api/'
+ETH_URL='https://ibf-test.510.global/api/'
 KEN_URL='https://ibf-test.510.global/api/'
 UGA_PASSWORD='password'#'jUWvHQJHkLmSjGmhsLS5NbH2F'  
 ZMB_PASSWORD='password'#'rp82pU8Qge6Yvu'

@@ -86,6 +86,7 @@ class GetData:
                         'exposurePlaceCodes': df_stats_levl,
                         'leadTime': self.leadTimeLabel,
                         'dynamicIndicator': indicator,# + '_affected',
+                        'disasterType':'drought',
                         'adminLevel': adm_level
                     }
                     
@@ -103,6 +104,7 @@ class GetData:
                             'exposurePlaceCodes': alert_threshold,
                             'leadTime': self.leadTimeLabel,
                             'dynamicIndicator': 'alert_threshold',
+                            'disasterType':'drought',
                             'adminLevel': adm_level
                         }
 
@@ -213,6 +215,7 @@ class GetData:
             
         for items in range(len(dfs)):
             df=dfs[items]
+            drought_identifier=df.columns[0]+' '+ str(df.iloc[0,0])
             if all(elem in list(df.iloc[0].to_dict().keys())  for elem in ['Category', 'County'] ):
                 df.columns = df.iloc[0]
                 df1=df.iloc[0: , :]
@@ -236,23 +239,23 @@ class GetData:
         
                 t0=list(set(df1.query('status=="Extreme"').iloc[:, 2].dropna().values.flatten()))
                 t = [items.split(',') for items in t0]
-                df_vci['Extreme'] = [re.sub(r"^\s+", "", item) for sublist in t for item in sublist]
+                df_vci['Extreme'] = [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 
                 t0=list(set(df1.query('status=="Severe"').iloc[:, 2].dropna().values.flatten()))
                 t = [items.split(',') for items in t0]
-                df_vci['Severe']= [re.sub(r"^\s+", "", item) for sublist in t for item in sublist]
+                df_vci['Severe']= [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 
                 t0=list(set(df1.query('status=="Moderate"').iloc[:, 2].dropna().values.flatten()))
                 t = [items.split(',') for items in t0]
-                df_vci['Moderate']= [re.sub(r"^\s+", "", item) for sublist in t for item in sublist]
+                df_vci['Moderate']= [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 
                 t0=list(set(df1.query('status=="Normal"').iloc[:, 2].dropna().values.flatten()))
                 t = [items.split(',') for items in t0]
-                df_vci['Normal']= [re.sub(r"^\s+", "", item) for sublist in t for item in sublist]
+                df_vci['Normal']= [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 
                 t0=list(set(df1.query('status=="Above_normal"').iloc[:, 2].dropna().values.flatten()))
                 t = [items.split(',') for items in t0]
-                df_vci['Above_normal']= [re.sub(r"^\s+", "", item) for sublist in t for item in sublist]
+                df_vci['Above_normal']= [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 print("yes",items,df_vci)
             elif all(elem in list(df.iloc[0].to_dict().keys())  for elem in  ['Cattle','Goats'] ):
                 df.columns = df.iloc[0]
@@ -262,29 +265,29 @@ class GetData:
                 df_cattle['poor']=list(set(df['Poor'].dropna().values.flatten()))
                 df_cattle['good']=list(set(df['Good'].dropna().values.flatten()))
                 print("yes",items,df_cattle)
-            elif all(elem in list(df.iloc[0].to_dict().keys())  for elem in ['Drought status', 'Trend'] ):
-                df.columns = df.iloc[0]
+            elif  drought_identifier in ['Drought status', 'Drought status nan']:
+                #df.columns = df.iloc[0]
                 df=df.iloc[1: , :]
-                df['status']=df.iloc[:,0]
+                #df['status']=df.iloc[:,0]
                 #df['Worsening']=df.iloc[:,3]
-                df['Dr_status']=df['status'].fillna(method="ffill")
+                df['Dr_status']=df.iloc[:,0].fillna(method="ffill")
                 
-                df_drought['normal']=list(set(df.query('Dr_status=="Normal"').iloc[:, 3].dropna().values.flatten()))
-                df_drought['alarm']=list(set(df.query('Dr_status=="Alarm"').iloc[:, 3].dropna().values.flatten()))
-                df_drought['alert']=list(set(df.query('Dr_status=="Alert"').iloc[:, 3].dropna().values.flatten()))
+                df_drought['normal']=list(set(df.query('Dr_status=="Normal"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['alarm']=list(set(df.query('Dr_status=="Alarm"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['alert']=list(set(df.query('Dr_status=="Alert"').iloc[:, 4].dropna().values.flatten()))
                 print("yes",items,df_drought)
             else:
                 print('no data')
         df_total = {**df_vci, **df_cattle, **df_drought}            
         indicator_file_path = PIPELINE_OUTPUT + 'calculated_affected/bulletin_df.json'
+        bulletin_updated={}
+        for k,v in df_total.items():
+            v=[item for item in v if len(item)>3]
+            bulletin_updated[k]=v
  
-        
-        alert_threshold_records = {
-            'exposurePlaceCodes': df_total,
-            'dynamicIndicator': 'drought'    
-        }  
+
         with open(indicator_file_path, 'w') as fp:
-            json.dump(alert_threshold_records, fp)       
+            json.dump(bulletin_updated, fp)       
             
         
         
