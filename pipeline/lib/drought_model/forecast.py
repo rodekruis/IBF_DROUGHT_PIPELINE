@@ -1,6 +1,7 @@
 from drought_model.exposure import Exposure
 from drought_model.GetData import GetData
 from drought_model.dynamicDataDb import DatabaseManager
+from drought_model.ICPACForecastData import retrieve_icpac_forecast_ftp
 from drought_model.settings import *
 import pandas as pd
 import json
@@ -11,13 +12,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+#%%     
+
+
+
 class Forecast:
     def __init__(self, leadTimeLabel, leadTimeValue, countryCodeISO3, admin_level):
         self.leadTimeLabel = leadTimeLabel
         self.leadTimeValue = leadTimeValue
         self.admin_level = admin_level
         self.countryCodeISO3=countryCodeISO3
-        self.db = DatabaseManager(leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level)      
+        self.outputPath = PIPELINE_DATA+'input/'
+        self.db = DatabaseManager(leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level)
+       
+        self.ftp_file_path=ftp_file_path  
+        self.output_filepath=PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
+                
         self.levels = SETTINGS[countryCodeISO3]['levels']
 
         admin_area_json = self.db.apiGetRequest('admin-areas/raw',countryCodeISO3=countryCodeISO3)
@@ -62,3 +72,4 @@ class Forecast:
         self.population_total =population_df
         #read glofas trigger levels from file
         self.getdata = GetData(leadTimeLabel,leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
+        self.rp = retrieve_icpac_forecast_ftp(self.ftp_file_path,self.output_filepath)

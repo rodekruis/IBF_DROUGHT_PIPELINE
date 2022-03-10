@@ -33,6 +33,7 @@ class GetData:
         self.admin_level=admin_level
         self.inputPath = PIPELINE_DATA+'input/'
         self.TRIGGER_PROB=TRIGGER_PROBABILITY
+        self.TRIGGER_PROBABILITY_RAIN=TRIGGER_PROBABILITY_RAIN
         self.outputPath = PIPELINE_DATA+'input/'
         self.spiforecast=PIPELINE_DATA+'input/ond_forecast.csv'
         self.triggger_prob=TRIGGER_PROBABILITY
@@ -42,6 +43,7 @@ class GetData:
         self.population_df=population_total
         self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
         self.EXPOSURE_DATA_SOURCES= SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
+        self.output_filepath=PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
         
         if not os.path.exists(self.inputPath):
             os.makedirs(self.inputPath)
@@ -136,6 +138,11 @@ class GetData:
         y=df[1]
         return int(x*y)    
     def get_spi_data(self):
+        """
+        Rainfall forecast for spi comes in a form of tercile probability catagories
+        SPI LIMIT =-0.98 and the three ctagories are 0.16354 (will be lower than -0.98),0.3006 ( will be about -.98normal)  
+        and 0.53586 (will be higher than -0.98). For drought the interesting figures will be the probability with 0.16    
+        """
         with open(self.spiforecast) as file:
             ## the first two lines are not useful 
             file.readline()
@@ -171,6 +178,44 @@ class GetData:
         rainforecast.to_csv(file_name)
         return rainforecast
         
+    def process_icpac_data():
+        ####  admin boundary shape file 
+        admin_df =self.ADMIN_AREA_GDF  
+        forecast_data =rioxarray.open_rasterio(self.output_filepath)
+        ### if the raster file has multiple formats select the band which is relevant for the analysis
+        precipitation=forecast_data['below'].rio.write_crs("epsg:4326", inplace=True).rio.clip(admin_df.geometry.values, admin_df.crs, from_disk=True).sel(band=1).drop("band")
+
+        precipitation.name = "precipitation"
+        ### create a new unique identifier with type integer 
+        admin_df['pcode'] = admin_df.apply(lambda row: row.ADM1_PCODE[-3:], axis=1)
+        admin_df["pcode"] = admin_df.pcode.astype(int)
+
+        # make your geo cube 
+        data_cube = make_geocube(
+            vector_data=admin_df,
+            measurements=["pcode"],
+            like=precipitation, # ensure the data are on the same grid
+        )
+
+        # merge the two together
+        data_cube["precipitation"] = (precipitation.dims, precipitation.values, precipitation.attrs, precipitation.encoding)
+        grouped_precipitation = data_cube.drop("spatial_ref").groupby(data_cube.pcode)
+
+        grid_mean = grouped_precipitation.mean().rename({"precipitation": "amount"})
+        grid_median = grouped_precipitation.median().rename({"precipitation": "precipitation_median"})
+         
+        zonal_stats_df = xr.merge([grid_mean, grid_median]).to_dataframe().reset_index()
+         
+        zonal_stats_df['placeCode'] = zonal_stats_df.apply(lambda row: self.countryCodeISO3+str(int(row.pcode)).zfill(3), axis=1) 
+        zonal_stats_df=zonal_stats_df[['placeCode','amount']]        
+        #stats=population_affected.to_dict(orient='records')
+        zonal_stats_df['trigger']=zonal_stats_df['amount'].apply(lambda x: 1 if x>self.TRIGGER_PROBABILITY_RAIN else 0)
+        file_name=self.output_filepath.split('.')[0]+'.csv'
+        zonal_stats_df.to_csv(file_name)
+        
+        return zonal_stats_df
+        
+        
     def get_alert_threshold(self, population_affected):
         # population_total = next((x for x in self.population_total if x['placeCode'] == population_affected['placeCode']), None)
         alert_threshold = 0
@@ -187,9 +232,9 @@ class GetData:
         dfs = tabula.read_pdf(self.FILE_PATH, pages='all',stream=True)
         dfs = [df for df in dfs if not df.empty]    
         
-        vci_satus={'Extreme':5,'Severe':4,'Moderate':3,'Normal':2,'Above_normal':1}
-        cattle_satus={'poor':3,'fair':2,'good':1}
-        drought_satus={'normal':1,'alarm':2,'alert':3}   
+        vci_satus={'Extreme':1,'Severe':2,'Moderate':3,'Normal':4,'Above_normal':5}
+        cattle_satus={'poor':1,'fair':2,'good':3}
+        drought_satus={'normal':1,'alarm':3,'alert':2}   
         df_vci={}
         df_cattle={}
         df_drought={}

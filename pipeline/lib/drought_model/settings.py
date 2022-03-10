@@ -101,18 +101,36 @@ SETTINGS = {"KEN": {
 
 # Change this date only in case of specific testing purposes
 import datetime
+from dateutil.relativedelta import relativedelta
 CURRENT_DATE = datetime.date.today()
 CURRENT_Month = datetime.date.today().month
 
 #CURRENT_DATE=date.today() - timedelta(1) # to use yesterday's date
 
+### define file path for ICPAC forecast 
+now_month=  datetime.date.today()+ relativedelta(months=-1)
+one_months =  datetime.date.today() + relativedelta(months=+0)
+three_months =  datetime.date.today() + relativedelta(months=+2)
+
+One_Month =one_months.strftime('%b')
+Three_Month = three_months.strftime('%b')
+Now_Month = now_month.strftime('%b')
+Now_Month_nummeric = now_month.strftime('%m')
+
+CURRENT_Year = datetime.date.today().year
+
+file_name=f'{One_Month}-{Three_Month}_{Now_Month}2022'   
+year_month=f'{CURRENT_Year}{Now_Month_nummeric}'
+
+ftp_file_path='SharedData/gcm/seasonal/'+f'{year_month}/'+f'PredictedProbabilityRain_{file_name}.nc'
 
 
 
 ####################
 ## OTHER SETTINGS ##
 ####################
-TRIGGER_PROBABILITY=40
+TRIGGER_PROBABILITY=990
+TRIGGER_PROBABILITY_RAIN=40
 SPI_Threshold_Prob='0.16354'
 TRIGGER_LEVELS = {
     "minimum": 0.6,
@@ -132,6 +150,9 @@ RASTER_OUTPUT = RASTER_DATA + 'output/'
 PIPELINE_DATA = 'data/'
 PIPELINE_INPUT = PIPELINE_DATA + 'input/'
 PIPELINE_OUTPUT = PIPELINE_DATA + 'output/'
+
+fname='Apr-Jun_Feb2022'   
+YearMon='202202'
 
 #########################
 ## INPUT DATA SETTINGS ##
