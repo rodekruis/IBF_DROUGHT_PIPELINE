@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Mar 10 14:10:13 2022
-
-@author: ATeklesadik
+@author: https://github.com/Tinkaa
+https://github.com/OCHA-DAP/pa-aa-toolbox/blob/083fd436e5a4ae530aaf69f0b290b104042faa9c/src/aatoolbox/datasources/icpac/icpac.py
 """
 """Retrieve data from ICPAC's FTP server."""
 import os
