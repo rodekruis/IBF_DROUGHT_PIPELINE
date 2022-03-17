@@ -22,7 +22,11 @@ except ImportError:
 import os
 import logging
 logger = logging.getLogger(__name__)
-
+import rioxarray
+import rasterio as rio
+from geocube.api.core import make_geocube
+import rioxarray
+import xarray as xr
 
 class GetData:
     def __init__(self, leadTimeLabel, leadTimeValue,admin_area_gdf,population_total, countryCodeISO3,admin_level):
