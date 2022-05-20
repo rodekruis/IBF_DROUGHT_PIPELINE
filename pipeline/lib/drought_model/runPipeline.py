@@ -32,23 +32,28 @@ def main():
     startTime = time.time() 
     logger.info(str(datetime.datetime.now()))
     try:
-        for COUNTRY_CODE in COUNTRY_CODES:
+        for COUNTRY_CODE in COUNTRY_CODES.keys():
             logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')
-            COUNTRY_SETTINGS = SETTINGS[COUNTRY_CODE]
-            LEAD_TIMES = COUNTRY_SETTINGS['lead_times']
-            leadTimeLabel=LEAD_TIMES[CURRENT_Month]
-            leadTimeValue=int(leadTimeLabel.split('-')[0])
-            logger.info(f'--------STARTING: {leadTimeLabel}' + '--------------------------')
-            fc = Forecast(leadTimeLabel, leadTimeValue, COUNTRY_CODE,COUNTRY_SETTINGS['admin_level'])
-            dynamic_draought_data =fc.getdata.processing()               
-            logger.info('--------Finished data Processing')
-
-            fc.getdata.callAllExposure()  
-            logger.info('--------Finished exposure data Processing')
-            fc.db.upload()
-            logger.info('--------Finished upload')
-            #fc.db.sendNotification()
-            #logger.info('--------Finished notification')
+            for SEASON in COUNTRY_CODES[COUNTRY_CODE]['seasons']:
+                logger.info(f'--------STARTING: {SEASON}' + '--------------------------')
+                COUNTRY_SETTINGS = SETTINGS[COUNTRY_CODE]
+                leadTimeLabels=COUNTRY_SETTINGS['lead_times'][SEASON][CURRENT_Month]
+                TRIGGER_SCENARIO=COUNTRY_SETTINGS['TRIGGER_SCENARIO']
+                for leadTimeLabel in leadTimeLabels:
+                    leadTimeValue=int(leadTimeLabel.split('-')[0])
+                    logger.info(f'--------STARTING: {leadTimeLabel}' + '--------------------------')
+                    fc = Forecast(leadTimeLabel, leadTimeValue, COUNTRY_CODE,SEASON,TRIGGER_SCENARIO,COUNTRY_SETTINGS['admin_level'])
+                    if COUNTRY_CODE=='KEN':
+                        fc.getdata.callAllExposure()               
+                    elif COUNTRY_CODE=='ETH':
+                        fc.getdata_eth.callAllExposure()               
+                    logger.info('--------Finished exposure data Processing')
+                    #fc.getdata.callAllExposure()  
+                    #logger.info('--------Finished exposure data Processing')
+                    fc.db.upload()
+                    logger.info('--------Finished upload')
+                #fc.db.sendNotification()
+                #logger.info('--------Finished notification')
     except Exception as e:
         logger.error("Drought Data PIPELINE ERROR")
         logger.error(e)

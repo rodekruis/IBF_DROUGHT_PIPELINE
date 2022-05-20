@@ -58,28 +58,82 @@ except ImportError:
 ######################
 
 # Countries to include
-COUNTRY_CODES = ['KEN']#,'ZMB','ETH','UGA']
+#COUNTRY_CODES = ['KEN']#,'ZMB','ETH','UGA']
+COUNTRY_CODES = {#'KEN':{'seasons':[1]},
+                 'ETH':{'seasons':[2,3,4]}
+                 }
 
-SETTINGS = {"KEN": {
+CROPPING_ZONES=[2,3,4]
+# Meher     1
+# Belg      2
+# Southern  4
+# Northern  3
+
+SETTINGS = {"ETH": {
+        "IBF_API_URL": ETH_URL,
+        "PASSWORD": ETH_PASSWORD,
+        "TRIGGER_PROBABILITY":45,
+        "TRIGGER_SCENARIO":"trigger_treshold_one",
+        "TRIGGER_threshold":[-1,30],
+        "TRIGGER_rain_prob_threshold":[45,30],
+        "mock": False,
+        "if_mock_trigger": False,
+        "notify_email": False,
+		'lead_times':{
+			2:
+				{
+				10:['4-month'],11:['3-month'],12:['2-month'],
+				1:['1-month'],2:['0-month'],3:['0-month','3-month'],
+				4:['0-month','2-month'],5:['0-month','1-month'],
+				6:['0-month'],7:['0-month'],8:['0-month'],9:['0-month']
+				},
+			3:
+				{
+				10:['5-month'],11:['4-month'],12:['3-month'],
+				1:['2-month'],2:['1-month'],3:['0-month'],
+				4:['0-month','3-month'],5:['0-month','2-month'],
+				6:['0-month','1-month'],7:['0-month'],8:['0-month'],9:['0-month'],
+				},
+			4:
+				{
+				10:['0-month'],11:['0-month'],12:['0-month','3-month'],
+				1:['2-month'],2:['1-month'],3:['0-month'],
+				4:['0-month'],5:['0-month'],
+				6:['4-month'],7:['3-month'],8:['2-month'],9:['1-month']
+				},
+			},
+        'admin_level': 2,
+        'levels':[2],
+        'EXPOSURE_DATA_SOURCES': {
+            "population_affected": {
+                "source": "population/hrsl_ken_pop_resized_100",
+                "rasterValue": 1
+            }
+        },
+        'DYNAMIC_INDICATORS': {
+            "ipc_class":"ipc_class",
+            "nutrition_need_priority_class":"nutrition_need_priority_class",
+            "rainfall_forecast":"rainfall_forecast",
+        },
+    },
+	"KEN": {
         "IBF_API_URL": KEN_URL,
+        "TRIGGER_SCENARIO":"trigger_treshold_one",
+        "TRIGGER_PROBABILITY":40,
+        "TRIGGER_threshold":[-1,30],
+        "TRIGGER_rain_prob_threshold":[45,30],
         "PASSWORD": KEN_PASSWORD,
         "mock": False,
         "if_mock_trigger": False,
         "notify_email": False,
-        'lead_times': {
-        1: '2-month',
-        2:'1-month',
-        3: '0-month',
-        4:'6-month',
-        5:'5-month',
-        6:'4-month',
-        7:'3-month',
-        8:'2-month',
-        9:'1-month',
-        10:'0-month',
-        11:'4-month',
-        12:'3-month'
-        },
+		'lead_times':{
+			1:
+				{                        
+                1: ['1-month'],2:['0-month'],3: ['7-month'],4:['6-month'],
+                5:['5-month'],6:['4-month'],7:['3-month'],8:['2-month'],
+                9:['1-month'],10:['0-month'],11:['3-month'],12:['2-month']
+                },
+            },
         'admin_level': 1,
         'levels':[1],
         'EXPOSURE_DATA_SOURCES': {
@@ -119,25 +173,28 @@ Now_Month_nummeric = now_month.strftime('%m')
 
 CURRENT_Year = datetime.date.today().year
 
-file_name=f'{One_Month}-{Three_Month}_{Now_Month}2022'   
+file_name=f'{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}'   
 year_month=f'{CURRENT_Year}{Now_Month_nummeric}'
 
-ftp_file_path='SharedData/gcm/seasonal/'+f'{year_month}/'+f'PredictedProbabilityRain_{file_name}.nc'
+Icpac_Forecast_FtpPath='SharedData/gcm/seasonal/'+f'{year_month}/'+f'PredictedProbabilityRain_{file_name}.nc'
+Icpac_Forecast_FtpPath_Rain='SharedData/gcm/seasonal/'+f'{year_month}/'+f'PredictedRain_{file_name}.nc'
+
+
 
 
 
 ####################
 ## OTHER SETTINGS ##
 ####################
-TRIGGER_PROBABILITY=990
+TRIGGER_PROBABILITY=40
 TRIGGER_PROBABILITY_RAIN=40
 SPI_Threshold_Prob='0.16354'
+
 TRIGGER_LEVELS = {
     "minimum": 0.6,
     "medium": 0.7,
     "maximum": 0.8
 }
-
 
 
 ###################
@@ -150,6 +207,11 @@ RASTER_OUTPUT = RASTER_DATA + 'output/'
 PIPELINE_DATA = 'data/'
 PIPELINE_INPUT = PIPELINE_DATA + 'input/'
 PIPELINE_OUTPUT = PIPELINE_DATA + 'output/'
+
+Icpac_Forecast_FilePath_Rain = PIPELINE_OUTPUT + f'{year_month}/'+f'PredictedProbabilityRain_{file_name}.nc'
+Icpac_Forecast_FilePath = PIPELINE_OUTPUT + f'{year_month}/'+f'PredictedRain_{file_name}.nc'
+
+
 
 fname='Apr-Jun_Feb2022'   
 YearMon='202202'

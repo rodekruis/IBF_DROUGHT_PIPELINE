@@ -9,7 +9,7 @@ import setuptools
 #with open("requirements.txt") as f:
 #    install_requires = f.read().splitlines()
 
-PROJECT_NAME = "flood_model"
+PROJECT_NAME = "drought_model"
 
 setuptools.setup(
     name=PROJECT_NAME,

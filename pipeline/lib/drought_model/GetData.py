@@ -238,7 +238,7 @@ class GetData:
         
         vci_satus={'Extreme':1,'Severe':2,'Moderate':3,'Normal':4,'Above_normal':5}
         cattle_satus={'poor':1,'fair':2,'good':3}
-        drought_satus={'normal':1,'alarm':3,'alert':2}   
+        drought_satus={'normal':1,'alarm':3,'alert':2,'emergency':4,'recovery':5}   
         df_vci={}
         df_cattle={}
         df_drought={}
@@ -247,8 +247,9 @@ class GetData:
             df=dfs[items]
             drought_identifier=df.columns[0]+' '+ str(df.iloc[0,0])
             if all(elem in list(df.iloc[0].to_dict().keys())  for elem in ['Category', 'County'] ):
-                df.columns = df.iloc[0]
-                df1=df.iloc[0: , :]
+                df_c=df.copy()
+                df_c.columns = df_c.iloc[0]
+                df1=df_c.iloc[0: , :]
                 df1['Extreme']=df.iloc[:,0]
                 #df1['status']=df1['Extreme'].fillna(method="ffill")
                 df1['status'] = df1['Extreme'].map({'Extreme': 'Extreme',
@@ -288,23 +289,28 @@ class GetData:
                 df_vci['Above_normal']= [re.sub(r"^\s+|\s+$", "", item) for sublist in t for item in sublist]
                 print("yes",items,df_vci)
             elif all(elem in list(df.iloc[0].to_dict().keys())  for elem in  ['Cattle','Goats'] ):
-                df.columns = df.iloc[0]
-                df=df.iloc[1: , :]
+                df_c=df.copy()
+                df_c.columns = df_c.iloc[0]
+                df_c=df_c.iloc[1: , :]
                 
-                df_cattle['fair']=list(set(df['Fair'].dropna().values.flatten()))
-                df_cattle['poor']=list(set(df['Poor'].dropna().values.flatten()))
-                df_cattle['good']=list(set(df['Good'].dropna().values.flatten()))
+                df_cattle['fair']=list(set(df_c['Fair'].dropna().values.flatten()))
+                df_cattle['poor']=list(set(df_c['Poor'].dropna().values.flatten()))
+                df_cattle['good']=list(set(df_c['Good'].dropna().values.flatten()))
                 print("yes",items,df_cattle)
             elif  drought_identifier in ['Drought status', 'Drought status nan']:
                 #df.columns = df.iloc[0]
-                df=df.iloc[1: , :]
+                df_c=df.copy()
+                df_c=df_c.iloc[1: , :]
                 #df['status']=df.iloc[:,0]
                 #df['Worsening']=df.iloc[:,3]
-                df['Dr_status']=df.iloc[:,0].fillna(method="ffill")
+                df_c['Dr_status']=df_c.iloc[:,0].fillna(method="ffill")
                 
-                df_drought['normal']=list(set(df.query('Dr_status=="Normal"').iloc[:, 4].dropna().values.flatten()))
-                df_drought['alarm']=list(set(df.query('Dr_status=="Alarm"').iloc[:, 4].dropna().values.flatten()))
-                df_drought['alert']=list(set(df.query('Dr_status=="Alert"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['normal']=list(set(df_c.query('Dr_status=="Normal"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['alarm']=list(set(df_c.query('Dr_status=="Alarm"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['alert']=list(set(df_c.query('Dr_status=="Alert"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['emergency']=list(set(df_c.query('Dr_status=="Emergency"').iloc[:, 4].dropna().values.flatten()))
+                df_drought['recovery']=list(set(df_c.query('Dr_status=="Recovery"').iloc[:, 4].dropna().values.flatten()))
+                
                 print("yes",items,df_drought)
             else:
                 print('no data')
@@ -320,54 +326,64 @@ class GetData:
       
         # join extracted data for the three indicators with admin layer 
         dfvci={}
-
+        columns_withvalue=[]
         for status in vci_satus.keys():
             print(vci_satus[status])
-            df2=pd.DataFrame(bulletin_updated[status])
-            df2.columns=["name"]
-            df2[status]=vci_satus[status]
-            df = pd.merge(df, df2, how="left", on="name")
-            df=df.fillna(0)
-        df['amount'] = df[['Extreme','Severe','Moderate','Normal','Above_normal']].apply(np.nanmax, axis = 1)        
-        df=df.groupby('placeCode').agg({'amount': 'max'})
-        df = df.astype(int)
-        df.reset_index(inplace=True)        
-        dfvci['vegetation_condition']=df[['placeCode','amount']].to_dict(orient='records')
-        
-        df=self.ADMIN_AREA_GDF[['name','placeCode']]
-        for status in cattle_satus.keys():
-            print(cattle_satus[status])
-            df2=pd.DataFrame(bulletin_updated[status])
-            df2.columns=["name"]
-            df2[status]=cattle_satus[status]
-            df = pd.merge(df, df2, how="left", on="name")
-            df=df.fillna(0)
-            
-        df['amount'] = df[['poor','fair','good']].apply(np.nanmax, axis = 1)
+            if bulletin_updated[status] != []:
+                df2=pd.DataFrame(bulletin_updated[status])
+                df2.columns=["name"]
+                df2[status]=vci_satus[status]
+                df = pd.merge(df, df2, how="left", on="name")
+                df=df.fillna(0)
+                columns_withvalue.append(status)
+                
+        df['amount'] = df[columns_withvalue].apply(np.nanmax, axis = 1)        
         df=df.groupby('placeCode').agg({'amount': 'max'})
         df = df.astype(int)
         df.reset_index(inplace=True) 
-        dfvci['livestock_body_condition']=df[['placeCode','amount']].to_dict(orient='records')
+        df=df.query('amount > 0')        
+        dfvci['vegetation_condition']=df[['placeCode','amount']].to_dict(orient='records')
         
-  
-        try:
-            df=self.ADMIN_AREA_GDF[['name','placeCode']]
-            for status in drought_satus.keys():
-                print(drought_satus[status])
+        df=self.ADMIN_AREA_GDF[['name','placeCode']]
+        columns_withvalue=[]
+        
+        for status in cattle_satus.keys():
+            print(cattle_satus[status])
+            if bulletin_updated[status] != []:
+                df2=pd.DataFrame(bulletin_updated[status])
+                df2.columns=["name"]
+                df2[status]=cattle_satus[status]
+                df = pd.merge(df, df2, how="left", on="name")
+                df=df.fillna(0)
+                columns_withvalue.append(status)
+            
+        df['amount'] = df[columns_withvalue].apply(np.nanmax, axis = 1)
+        df=df.groupby('placeCode').agg({'amount': 'max'})
+        df = df.astype(int)
+        df.reset_index(inplace=True) 
+        df=df.query('amount > 0')
+        dfvci['livestock_body_condition']=df[['placeCode','amount']].to_dict(orient='records')       
+
+        df=self.ADMIN_AREA_GDF[['name','placeCode']]
+        columns_withvalue=[]
+        for status in drought_satus.keys():
+            print(drought_satus[status])
+            if bulletin_updated[status] != []:
                 df2=pd.DataFrame(bulletin_updated[status])
                 df2.columns=["name"]
                 df2[status]=drought_satus[status]
                 df = pd.merge(df, df2, how="left", on="name") 
-                df=df.fillna(0)                
-            df['amount'] = df[['normal','alarm','alert']].apply(np.nanmax, axis = 1)
-            df=df.groupby('placeCode').agg({'amount': 'max'})
-            df = df.astype(int)
-            df.reset_index(inplace=True)        
-            dfvci['drought_phase_classification']=df[['placeCode','amount']].to_dict(orient='records')
- 
-            print('pass')
-        except:
-            print('failed')
+                df=df.fillna(0)
+                columns_withvalue.append(status)                    
+        df['amount'] = df[columns_withvalue].apply(np.nanmax, axis = 1)
+        df=df.groupby('placeCode').agg({'amount': 'max'})
+        df = df.astype(int)
+        df.reset_index(inplace=True)    
+        df=df.query('amount > 0')            
+        dfvci['drought_phase_classification']=df[['placeCode','amount']].to_dict(orient='records')
+
+        print('pass')
+
         
         # remove duplicate entries
         indicator_file_path = PIPELINE_OUTPUT + 'calculated_affected/dynamic_drought_indicators.json'

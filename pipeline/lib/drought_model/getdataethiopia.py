@@ -4,11 +4,18 @@ import numpy
 import rioxarray
 import rasterio as rio
 import xarray as xr
+import pandas as pd
+import math
+from scipy.stats import gamma
+from scipy.stats import norm
+import glob
 from geocube.api.core import make_geocube 
+from datetime import datetime
 
-import os
 from ftplib import FTP, FTP_TLS
 from drought_model.settings import *
+from climate_indices import compute, indices, utils  #compute, eto, palmer, utils , lmoments
+
 try:
     from drought_model.secrets import *
 except ImportError:
@@ -17,12 +24,16 @@ except ImportError:
 
 class ICPACDATA:
 
-    def __init__(self,admin_area_gdf,leadTimeLabel, leadTimeValue,countryCodeISO3):    
+    def __init__(self,leadTimeLabel,leadTimeValue,SEASON,TRIGGER_SCENARIO,admin_area_gdf,population_total,countryCodeISO3,admin_level):    
         
         self.leadTimeLabel = leadTimeLabel
         self.leadTimeValue = leadTimeValue
+        self.TRIGGER_SCENARIO=TRIGGER_SCENARIO
+        self.SEASON = SEASON
         self.RASTER_OUTPUT = RASTER_OUTPUT
         self.countryCodeISO3 = countryCodeISO3
+        self.population_df=population_total
+        
         
         self.Icpac_Forecast_FtpPath= Icpac_Forecast_FtpPath
         self.Icpac_Forecast_FilePath=Icpac_Forecast_FilePath
@@ -32,6 +43,7 @@ class ICPACDATA:
         self.ICPAC_FTP_ADDRESS=ICPAC_FTP_ADDRESS
         self.ICPAC_FTP_USERNAME=ICPAC_FTP_USERNAME
         self.ICPAC_FTP_PASSWORD=ICPAC_FTP_PASSWORD
+        
         
         self.min_lon = math.floor(admin_area_gdf.total_bounds[0])
         self.min_lat = math.floor(admin_area_gdf.total_bounds[1])
@@ -46,11 +58,12 @@ class ICPACDATA:
         
         croping_zones_pcode= PIPELINE_INPUT +'croping_zones_pcode.csv' 
         
-        crop_df =pd.read_csv(croping_zones_pcode)    
+        crop_df =pd.read_csv(croping_zones_pcode)       
+ 
         
         admin_df=pd.merge(admin_area_gdf.copy(),crop_df[['ADM2_PCODE','Crop_group']],  how='left',left_on='placeCode' , right_on ='ADM2_PCODE')
         
-        
+        admin_df=admin_df.query(f'Crop_group=={self.SEASON}') 
         
         ### create a new unique identifier with type integer 
         admin_df['ind'] = admin_df.apply(lambda row: row.ADM2_PCODE[-4:], axis=1)
@@ -60,9 +73,87 @@ class ICPACDATA:
         
         
         self.admin_df= admin_df
-        
 
+
+    def processing(self):
+
+        spi_data=self.process_rain_total_eth()        
+        #drought_indicators=self.read_bulletin()
+        df=self.population_df
+        df_spi = pd.merge(df,spi_data, how="left", on="placeCode")        
+        df_spi['trigger']=df_spi[self.TRIGGER_SCENARIO].fillna(0)
+        df_spi['population_affected'] = df_spi.apply(lambda row: row.trigger*row.value, axis=1)       
+        return df_spi        
+
+    def callAllExposure(self):
+
+        df_total = self.processing()
+        # drought_indicators=self.read_bulletin()
+        # for indicator, values in self.DYNAMIC_INDICATORS.items():
+            # df_stats_levl=drought_indicators[indicator]
+            # self.statsPath=PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
+                        # str(self.leadTimeValue) + '_' + self.countryCodeISO3 +'_admin_' +str(self.admin_level) + '_' + indicator + '.json'
+            # result = {
+                # 'countryCodeISO3': self.countryCodeISO3,
+                # 'exposurePlaceCodes': df_stats_levl,
+                # 'leadTime': self.leadTimeLabel,
+                # 'dynamicIndicator': indicator,
+                # 'adminLevel': self.admin_level
+            # }
+            
+            # with open(self.statsPath, 'w') as fp:
+                # json.dump(result, fp)
         
+        for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
+            try:
+                logger.info(f'indicator: {indicator}')
+                df_total['amount']=df_total[indicator]                
+                population_affected=df_total[['placeCode','amount']]        
+                stats=population_affected.to_dict(orient='records')
+                df_stats=pd.DataFrame(stats) 
+                #stats_dff = pd.merge(df,self.pcode_df,  how='left',left_on='placeCode', right_on = f'placeCode_{self.admin_level}')
+                for adm_level in SETTINGS[self.countryCodeISO3]['levels']:  
+                    if adm_level==self.admin_level:
+                        df_stats_levl=stats
+                    else:
+                        df_stats_levl =df_stats.groupby(f'placeCode_{adm_level}').agg({'amount': 'sum'})
+                        df_stats_levl.reset_index(inplace=True)
+                        df_stats_levl['placeCode']=df_stats_levl[f'placeCode_{adm_level}']
+                        df_stats_levl=df_stats_levl[['amount','placeCode']].to_dict(orient='records')
+                        
+                    self.statsPath = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
+                        str(self.leadTimeValue) + '_' + self.countryCodeISO3 +'_admin_' +str(adm_level) + '_' + indicator + '.json'
+
+                    result = {
+                        'countryCodeISO3': self.countryCodeISO3,
+                        'exposurePlaceCodes': df_stats_levl,
+                        'leadTime': self.leadTimeLabel,
+                        'dynamicIndicator': indicator,# + '_affected',
+                        'adminLevel': adm_level
+                    }
+                    
+                    with open(self.statsPath, 'w') as fp:
+                        json.dump(result, fp)
+                        
+                    if indicator=='population_affected':
+                        alert_threshold = list(map(self.get_alert_threshold, df_stats_levl))
+
+                        alert_threshold_file_path = PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
+                            str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adm_level) + '_' + 'alert_threshold' + '.json'
+
+                        alert_threshold_records = {
+                            'countryCodeISO3': self.countryCodeISO3,
+                            'exposurePlaceCodes': alert_threshold,
+                            'leadTime': self.leadTimeLabel,
+                            'dynamicIndicator': 'alert_threshold',
+                            'adminLevel': adm_level
+                        }
+
+                        with open(alert_threshold_file_path, 'w') as fp:
+                            json.dump(alert_threshold_records, fp)
+            except:
+                logger.info(f'failed to output for indicator: {indicator}')
+                pass        
         
     def process_rain_total_eth(self):
     
@@ -145,6 +236,9 @@ class ICPACDATA:
         
         icpac_spi = icpac_spi_data.transpose('lat', 'lon', 'time')
         icpac_spi=icpac_spi.to_dataset(name='spi3')
+        icpac_spi.rename({'lon':'x','lat':'y'})
+        
+        # SPI for the 
         
         spi_data=icpac_spi.isel(time=[-1])
         spi=spi_data['spi3']
@@ -155,14 +249,9 @@ class ICPACDATA:
             measurements=["pcode","cropzone"],
             like=spi, # ensure the data are on the same grid
         )
-        spi.rename({'lon':'x','lat':'y'})
-        
-        out_grid["spi"] = (spi.dims, spi.values, spi.attrs, spi.encoding)
-        
-        grouped_spi_data = out_grid.groupby(out_grid.pcode)
-        
-        # merge the two together
-
+        #spi.rename({'lon':'x','lat':'y'})        
+                
+        # 
          
         spi1 = spi.where(spi < self.TRIGGER_threshold) 
 
@@ -171,8 +260,28 @@ class ICPACDATA:
 
         zonal_stats_df['placeCode'] = zonal_stats_df.apply(lambda row: 'ET'+str(int(row.pcode)).zfill(4), axis=1)
         zonal_stats_df['percentage'] = zonal_stats_df.apply(lambda row: 100*(int(row.spi)/int(row.cropzone)), axis=1)
-        zonal_stats_df.loc[zonal_stats_df['percentage'] >= self.TRIGGER_threshold_percentage, 'Trigger_threshold'] = 1 
-        zonal_stats_df.loc[zonal_stats_df['percentage'] < self.TRIGGER_threshold_percentage, 'Trigger_threshold'] = 0     
+        zonal_stats_df.loc[zonal_stats_df['percentage'] >= self.TRIGGER_threshold_percentage, 'Trigger_threshold_spi'] = 1 
+        zonal_stats_df.loc[zonal_stats_df['percentage'] < self.TRIGGER_threshold_percentage, 'Trigger_threshold_spi'] = 0  
+        
+        
+        spi_data=icpac_spi.isel(time=[-4])
+        spi=spi_data['spi3']        
+        
+        
+        # merge the two together
+
+         
+        spi_obs = spi.where(spi < self.TRIGGER_threshold) 
+
+        out_grid["spi"] = (spi_obs.dims, spi_obs.values, spi_obs.attrs, spi_obs.encoding) 
+        zonal_stats_df_obs=out_grid.groupby(out_grid.pcode).count().to_dataframe().reset_index()
+
+        zonal_stats_df_obs['placeCode'] = zonal_stats_df_obs.apply(lambda row: 'ET'+str(int(row.pcode)).zfill(4), axis=1)
+        zonal_stats_df_obs['percentage'] = zonal_stats_df_obs.apply(lambda row: 100*(int(row.spi)/int(row.cropzone)), axis=1)
+        zonal_stats_df_obs.loc[zonal_stats_df_obs['percentage'] >= self.TRIGGER_threshold_percentage, 'Trigger_threshold_spi_obs'] = 1 
+        zonal_stats_df_obs.loc[zonal_stats_df_obs['percentage'] < self.TRIGGER_threshold_percentage, 'Trigger_threshold_spi_obs'] = 0 
+        
+        threshold_df_spi=pd.merge(zonal_stats_df[['placeCode','Trigger_threshold_spi']],zonal_stats_df_obs[['placeCode','Trigger_threshold_spi_obs']],  how='left',left_on='placeCode' , right_on ='placeCode')
         
         ########################################
         ############# probabilistic forecast ###
@@ -209,58 +318,20 @@ class ICPACDATA:
 
         zonal_stats_rain_prob_df['placeCode'] = zonal_stats_rain_prob_df.apply(lambda row: 'ET'+str(int(row.pcode)).zfill(4), axis=1)
         zonal_stats_rain_prob_df['percentage'] = zonal_stats_rain_prob_df.apply(lambda row: 100*(int(row.below)/int(row.cropzone)), axis=1)
-        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] >= self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 1 
-        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] < self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 0 
+        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] >= self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_below'] = 1 
+        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] < self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_below'] = 0 
         
         
-        
-        threshold_df=pd.merge(zonal_stats_df,zonal_stats_rain_prob_df[['placeCode','Trigger_threshold_prob']],  how='left',left_on='placeCode' , right_on ='placeCode')
-        
+
+        threshold_df=pd.merge(threshold_df_spi[['placeCode','Trigger_threshold_spi','Trigger_threshold_spi_obs']],zonal_stats_rain_prob_df[['placeCode','Trigger_threshold_below']],  how='left',left_on='placeCode' , right_on ='placeCode')
+        threshold_df['trigger_treshold_both'] = threshold_df.apply(lambda row: (row.Trigger_threshold_below)*row.Trigger_threshold_spi, axis=1)
+        threshold_df['trigger_treshold_one'] = threshold_df.apply(lambda row: math.ceil(0.5*row.Trigger_threshold_below+0.5*row.Trigger_threshold_spi), axis=1)
         
 
 
         return threshold_df 
 
-    def process_rain_probability_eth(self):
-    
-        admin_df =self.admin_area_gdf
-        
- 
-       
-        df_prediction_prob =xr.open_dataset(self.Icpac_Forecast_FilePath,decode_times=False).rename({"lat": "y","lon":"x"}).rio.write_crs("epsg:4326", inplace=True)
-        precipitation = df_prediction_prob['below'].rio.clip_box(minx=min_lon, miny=min_lat, maxx=max_lon, maxy=max_lat)       
-        
-        below_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_below_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
-        normal_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_normal_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
-        above_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_above_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
-        
-        df_prediction_prob["below"].rio.to_raster(below_rain_forecast)
-        df_prediction_prob["normal"].rio.to_raster(normal_rain_forecast)
-        df_prediction_prob["average"].rio.to_raster(average_rain_forecast)
-        
 
-        # make your geo cube 
-        out_grid_prob = make_geocube(
-            vector_data=admin_df,
-            measurements=["pcode","cropzone"],
-            like=precipitation, # ensure the data are on the same grid
-        )
-        # merge the two together
-        precipitation = precipitation.where(precipitation < self.TRIGGER_rain_prob_threshold) 
-        out_grid_prob["below"] = (precipitation.dims, precipitation.values, precipitation.attrs, precipitation.encoding)
-
-                
-        # merge the two together
-           
-
-        zonal_stats_rain_prob_df=out_grid_prob.groupby(out_grid_prob.pcode).count().to_dataframe().reset_index()
-
-        zonal_stats_rain_prob_df['placeCode'] = zonal_stats_rain_prob_df.apply(lambda row: 'ET'+str(int(row.pcode)).zfill(4), axis=1)
-        zonal_stats_rain_prob_df['percentage'] = zonal_stats_rain_prob_df.apply(lambda row: 100*(int(row.below)/int(row.cropzone)), axis=1)
-        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] >= self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 1 
-        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] < self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 0 
-
-        return zonal_stats_rain_prob_df 
 
 
 
@@ -398,7 +469,46 @@ class ICPACDATA:
         
         return da_spi
         
+    def process_rain_probability_eth(self):
+    
+        admin_df =self.admin_area_gdf
         
+ 
+       
+        df_prediction_prob =xr.open_dataset(self.Icpac_Forecast_FilePath,decode_times=False).rename({"lat": "y","lon":"x"}).rio.write_crs("epsg:4326", inplace=True)
+        precipitation = df_prediction_prob['below'].rio.clip_box(minx=min_lon, miny=min_lat, maxx=max_lon, maxy=max_lat)       
+        
+        below_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_below_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
+        normal_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_normal_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
+        above_rain_forecast= self.RASTER_OUTPUT+ f'rainfall_above_{leadTimeValue}_' + self.countryCodeISO3+'.tif'
+        
+        df_prediction_prob["below"].rio.to_raster(below_rain_forecast)
+        df_prediction_prob["normal"].rio.to_raster(normal_rain_forecast)
+        df_prediction_prob["average"].rio.to_raster(average_rain_forecast)
+        
+
+        # make your geo cube 
+        out_grid_prob = make_geocube(
+            vector_data=admin_df,
+            measurements=["pcode","cropzone"],
+            like=precipitation, # ensure the data are on the same grid
+        )
+        # merge the two together
+        precipitation = precipitation.where(precipitation < self.TRIGGER_rain_prob_threshold) 
+        out_grid_prob["below"] = (precipitation.dims, precipitation.values, precipitation.attrs, precipitation.encoding)
+
+                
+        # merge the two together
+           
+
+        zonal_stats_rain_prob_df=out_grid_prob.groupby(out_grid_prob.pcode).count().to_dataframe().reset_index()
+
+        zonal_stats_rain_prob_df['placeCode'] = zonal_stats_rain_prob_df.apply(lambda row: 'ET'+str(int(row.pcode)).zfill(4), axis=1)
+        zonal_stats_rain_prob_df['percentage'] = zonal_stats_rain_prob_df.apply(lambda row: 100*(int(row.below)/int(row.cropzone)), axis=1)
+        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] >= self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 1 
+        zonal_stats_rain_prob_df.loc[zonal_stats_rain_prob_df['percentage'] < self.TRIGGER_rain_prob_threshold_percentage, 'Trigger_threshold_prob'] = 0 
+
+        return zonal_stats_rain_prob_df        
         
         
         
