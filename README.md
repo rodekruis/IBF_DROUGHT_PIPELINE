@@ -1,4 +1,4 @@
-# IBF-pipeline Kenya Drought
+# IBF Drought pipeline for Ethiopia and Kenya
 
 This pipeline is creating and uploading forecast data to the [IBF-system](https://github.com/rodekruis/IBF-system). This means that to set this pipeline up meaningfully, you must also set up an instance of the IBF-system.
 
