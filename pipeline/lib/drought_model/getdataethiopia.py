@@ -62,12 +62,9 @@ class ICPACDATA:
         self.ICPAC_FTP_USERNAME = ICPAC_FTP_USERNAME
         self.ICPAC_FTP_PASSWORD = ICPAC_FTP_PASSWORD
 
-        self.min_lon = math.floor(admin_area_gdf.total_bounds[0])
-        self.min_lat = math.floor(admin_area_gdf.total_bounds[1])
-        self.max_lon = math.ceil(admin_area_gdf.total_bounds[2])
-        self.max_lat = math.ceil(admin_area_gdf.total_bounds[3])
-
         self.TRIGGER_threshold = SETTINGS[countryCodeISO3]["TRIGGER_threshold"][0]
+        self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]["EXPOSURE_DATA_SOURCES"]
+        self.DYNAMIC_INDICATORS = SETTINGS["DYNAMIC_INDICATORS"]
         self.TRIGGER_threshold_percentage = SETTINGS[countryCodeISO3][
             "TRIGGER_threshold"
         ][1]
@@ -82,14 +79,22 @@ class ICPACDATA:
         croping_zones_pcode = PIPELINE_INPUT + "croping_zones_pcode.csv"
 
         crop_df = pd.read_csv(croping_zones_pcode)
+        admin_zones_eth = PIPELINE_INPUT + "admin2.geojson"
+        admin_df = gpd.read_file(admin_zones_eth)  # fc.admin_area_gdf
+        admin_area_gdf = admin_df
 
         admin_df = pd.merge(
-            admin_area_gdf.copy(),
+            admin_area_gdf,
             crop_df[["ADM2_PCODE", "Crop_group"]],
             how="left",
-            left_on="placeCode",
+            left_on="ADM2_PCODE",
             right_on="ADM2_PCODE",
         )
+
+        self.min_lon = math.floor(admin_area_gdf.total_bounds[0])
+        self.min_lat = math.floor(admin_area_gdf.total_bounds[1])
+        self.max_lon = math.ceil(admin_area_gdf.total_bounds[2])
+        self.max_lat = math.ceil(admin_area_gdf.total_bounds[3])
 
         admin_df = admin_df.query(f"Crop_group=={self.SEASON}")
 
@@ -99,6 +104,13 @@ class ICPACDATA:
         admin_df["cropzone"] = admin_df.Crop_group.astype(int)
 
         self.admin_df = admin_df
+
+    def downloadforecast(self):
+        try:
+            self.retrieve_icpac_forecast_ftp()
+        except:
+            logger.error(" ICPAC FTP ERROR")
+            pass
 
     def processing(self):
 
@@ -244,7 +256,7 @@ class ICPACDATA:
         df_prediction_ = df_prediction_.rename({"y": "lat", "x": "lon"})
 
         # make sure we have the arrays with time as the inner-most dimension
-        preferred_dims = ("lat", "lon", "time")
+        preferred_dims = ("lat", "lon")  # , "time")
         df_prediction_ = df_prediction_.transpose(*preferred_dims)
 
         historical_rain_data = RASTER_INPUT + "CHIRPS/chirps-*.tif"
@@ -274,6 +286,7 @@ class ICPACDATA:
         df_prediction_1["time"] = pd.date_range(
             start=prediction_data, periods=3, freq="M"
         )
+        preferred_dims = ("lat", "lon", "time")
 
         observation = geotiffs_ds["prec"].transpose(*preferred_dims)
 
@@ -319,8 +332,8 @@ class ICPACDATA:
         )
 
         icpac_spi = icpac_spi_data.transpose("lat", "lon", "time")
-        icpac_spi = icpac_spi.to_dataset(name="spi3")
-        icpac_spi.rename({"lon": "x", "lat": "y"})
+        icpac_spi = icpac_spi.to_dataset(name="spi3").rename({"lon": "x", "lat": "y"})
+        # icpac_spi.rename({"lon": "x", "lat": "y"})
 
         # SPI for the
 
@@ -329,7 +342,7 @@ class ICPACDATA:
 
         # make your geo cube
         out_grid = make_geocube(
-            vector_data=spi,
+            vector_data=admin_df,
             measurements=["pcode", "cropzone"],
             like=spi,  # ensure the data are on the same grid
         )
@@ -340,6 +353,7 @@ class ICPACDATA:
         spi1 = spi.where(spi < self.TRIGGER_threshold)
 
         out_grid["spi"] = (spi1.dims, spi1.values, spi1.attrs, spi1.encoding)
+
         zonal_stats_df = (
             out_grid.groupby(out_grid.pcode).count().to_dataframe().reset_index()
         )
@@ -390,6 +404,10 @@ class ICPACDATA:
             zonal_stats_df_obs["percentage"] < self.TRIGGER_threshold_percentage,
             "Trigger_threshold_spi_obs",
         ] = 0
+        spifile_name = PIPELINE_OUTPUT + "zonalstats_spi.csv"
+        profile_name = PIPELINE_OUTPUT + "zonalstats_obs.csv"
+        zonal_stats_df.to_csv(spifile_name)
+        zonal_stats_df_obs.to_csv(profile_name)
 
         threshold_df_spi = pd.merge(
             zonal_stats_df[["placeCode", "Trigger_threshold_spi"]],
@@ -473,11 +491,14 @@ class ICPACDATA:
             >= self.TRIGGER_rain_prob_threshold_percentage,
             "Trigger_threshold_below",
         ] = 1
+
         zonal_stats_rain_prob_df.loc[
             zonal_stats_rain_prob_df["percentage"]
             < self.TRIGGER_rain_prob_threshold_percentage,
             "Trigger_threshold_below",
         ] = 0
+        profile_name = PIPELINE_OUTPUT + "zonalstats_prob.csv"
+        zonal_stats_rain_prob_df.to_csv(profile_name)
 
         threshold_df = pd.merge(
             threshold_df_spi[
@@ -593,7 +614,7 @@ class ICPACDATA:
         preferred_dims = ("lat", "lon")
 
         t = (
-            rio.open_rasterio(filename)
+            rioxarray.open_rasterio(filename)
             .rio.write_crs("epsg:4326", inplace=True)
             .rio.clip_box(
                 minx=self.min_lon,

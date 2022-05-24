@@ -3,6 +3,9 @@
 ##################
 
 # 1. Try to load secrets from Azure key vault (i.e. when running through Logic App) if user has access
+from datetime import date
+from dateutil.relativedelta import relativedelta
+
 try:
     from azure.identity import DefaultAzureCredential
     from azure.keyvault.secrets import SecretClient
@@ -182,25 +185,24 @@ SETTINGS = {
 
 
 # Change this date only in case of specific testing purposes
-import datetime
-from dateutil.relativedelta import relativedelta
 
-CURRENT_DATE = datetime.date.today()
-CURRENT_Month = datetime.date.today().month
+
+CURRENT_DATE = date.today()
+CURRENT_Month = date.today().month
 
 # CURRENT_DATE=date.today() - timedelta(1) # to use yesterday's date
 
 ### define file path for ICPAC forecast
-now_month = datetime.date.today() + relativedelta(months=-1)
-one_months = datetime.date.today() + relativedelta(months=+0)
-three_months = datetime.date.today() + relativedelta(months=+2)
+now_month = date.today() + relativedelta(months=-1)
+one_months = date.today() + relativedelta(months=+0)
+three_months = date.today() + relativedelta(months=+2)
 
 One_Month = one_months.strftime("%b")
 Three_Month = three_months.strftime("%b")
 Now_Month = now_month.strftime("%b")
 Now_Month_nummeric = now_month.strftime("%m")
 
-CURRENT_Year = datetime.date.today().year
+CURRENT_Year = date.today().year
 
 file_name = f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}"
 year_month = f"{CURRENT_Year}{Now_Month_nummeric}"
@@ -232,15 +234,15 @@ NDRMC_BULLETIN_FILE_PATH = "https://www.ndma.go.ke/index.php/resource-center/nat
 RASTER_DATA = "data/raster/"
 RASTER_INPUT = RASTER_DATA + "input/"
 RASTER_OUTPUT = RASTER_DATA + "output/"
-PIPELINE_DATA = "data/"
+PIPELINE_DATA = "data/other/"
 PIPELINE_INPUT = PIPELINE_DATA + "input/"
 PIPELINE_OUTPUT = PIPELINE_DATA + "output/"
 
-Icpac_Forecast_FilePath_Rain = (
-    PIPELINE_OUTPUT + f"{year_month}/" + f"PredictedProbabilityRain_{file_name}.nc"
-)
 Icpac_Forecast_FilePath = (
-    PIPELINE_OUTPUT + f"{year_month}/" + f"PredictedRain_{file_name}.nc"
+    RASTER_INPUT + "ICPAC/" + f"PredictedProbabilityRain_{file_name}.nc"
+)
+Icpac_Forecast_FilePath_Rain = (
+    RASTER_INPUT + "ICPAC/" + f"PredictedRain_{file_name}.nc"
 )
 
 
