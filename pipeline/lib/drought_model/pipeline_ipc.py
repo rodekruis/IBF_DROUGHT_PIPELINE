@@ -1,0 +1,158 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul  7 17:19:24 2021
+
+@author: ATeklesadik
+"""
+
+import subprocess
+import requests
+import urllib.request
+import zipfile
+import os
+import shutil
+import geopandas as gpd
+from bs4 import BeautifulSoup
+import urllib.request
+from os import listdir
+from os.path import isfile, join
+import glob
+from zipfile import ZipFile
+import datetime as dt
+import pandas as pd
+import json
+import rasterio
+from rasterio.plot import show
+from rasterstats import zonal_stats
+from drought_model.settings import *
+
+try:
+    from drought_model.secrets import *
+except ImportError:
+    print("No secrets file found.")
+
+
+class IPCCLASS:
+    def __init__(
+        self,
+        countryCodeISO3,
+        admin_level,
+    ):
+        self.countryCodeISO3 = countryCodeISO3
+        self.levels = SETTINGS[countryCodeISO3]["levels"]
+        self.PIPELINE_OUTPUT = self.PIPELINE_OUTPUT
+
+        admin_woreda_eth = PIPELINE_INPUT + "ETH_adm3.geojson"
+        eth_admin = gpd.read_file(admin_woreda_eth)  # fc.admin_area_gdf
+
+        self.Start_year = 2022
+        self.End_year = 2022
+
+        self.mypath2 = PIPELINE_INPUT + "ipc"
+
+    def downloadipc(self):
+        """ """
+        yearmonth = f"{CURRENT_Year}-{Now_Month_nummeric}"
+
+        filename = (
+            PIPELINE_INPUT
+            + "ipc/raw/"
+            + f"east_afria_{CURRENT_Year}-{Now_Month_nummeric}.zip"
+        )
+
+        new_ipc_url = f"https://fdw.fews.net/api/ipcpackage/?country_group=902&collection_date={yearmonth}-01"
+
+        print("Downloading shapefile {0}".format(filename))
+
+        urllib.request.urlretrieve("{0}".format(new_ipc_url), filename)
+
+    def extractipcfiles(self):
+        directory_to_extract_to = PIPELINE_INPUT + "ipc/raw/"
+
+        path_to_zip_file = (
+            PIPELINE_INPUT
+            + "ipc/raw/"
+            + f"east_afria_{CURRENT_Year}-{Now_Month_nummeric}.zip"
+        )
+
+        with zipfile.ZipFile(path_to_zip_file, "r") as zip_ref:
+            zip_ref.extractall(directory_to_extract_to)
+
+        ML1_FILE = (
+            PIPELINE_INPUT
+            + "ipc/raw/"
+            + f"EA_{CURRENT_Year}{Now_Month_nummeric}_ML1.shp"
+        )
+        ML2_FILE = (
+            PIPELINE_INPUT
+            + "ipc/raw/"
+            + f"EA_{CURRENT_Year}{Now_Month_nummeric}_ML2.shp"
+        )
+
+        ML1_ = gpd.read_file(ML1_FILE)
+        ML2_ = gpd.read_file(ML2_FILE)
+        gdf_lhz_cs_merged = gpd.sjoin(eth_admin, ML1_, how="left")
+        df = gdf_lhz_cs_merged[["ADM3_PCODE", "ML1"]].query("ML1 < 6")
+        df = df.iloc[df.reset_index().groupby(["ADM3_PCODE"])["ML1"].idxmax()]
+        # gdf_lhz_cs_merged = gpd.sjoin(moz_lzh, CS_,how='left')
+        gdf_lhz_cs_merged = gpd.sjoin(eth_admin, ML2_, how="left")
+        # df=gdf_lhz_cs_merged[['FNID','CS']].query('CS < 6')
+        df2 = gdf_lhz_cs_merged[["ADM3_PCODE", "ML2"]].query("ML2 < 6")
+        df2 = df2.iloc[df2.reset_index().groupby(["ADM3_PCODE"])["ML2"].idxmax()]
+        IPCdf = df.set_index("ADM3_PCODE").join(df2.set_index("ADM3_PCODE"))
+
+        df2 = pd.DataFrame()
+        df2[["IPC_forecast_short", "IPC_forecast_long"]] = IPCdf[["ML1", "ML2"]]
+        df2["placeCode"] = IPCdf.index
+        cols = ["IPC_forecast_short", "IPC_forecast_long"]
+        df2[cols] = df2[cols].apply(pd.to_numeric, errors="coerce", axis=1)
+        df2 = df2.fillna(0)
+
+        ipc_df = pd.merge(
+            eth_admin, df2, how="left", left_on="ADM3_PCODE", right_on="ADM3_PCODE"
+        )
+
+        for indicator in ["IPC_forecast_short", "IPC_forecast_long"]:  # df2.columns:
+            for adm_level in self.levels:  # SETTINGS[self.countryCodeISO3]["levels"]:
+                df_stats = pd.DataFrame()
+                df_stats["placeCode"] = ipc_df[f"ADM{adm_level}_PCODE"]
+                df_stats["amount"] = ipc_df[indicator]
+                df_stats_levl = df_stats.groupby("placeCode").agg({"amount": "sum"})
+                df_stats_levl.reset_index(inplace=True)
+                df_stats_levl = df_stats_levl[["amount", "placeCode"]].to_dict(
+                    orient="records"
+                )
+                statsPath = (
+                    self.PIPELINE_OUTPUT
+                    + "calculated_affected/affected_"
+                    # + str(self.leadTimeValue)
+                    + "_"
+                    + self.countryCodeISO3
+                    + "_admin_"
+                    + str(adm_level)
+                    + "_"
+                    + c
+                    + ".json"
+                )
+
+                exposure_data = {
+                    "countryCodeISO3": self.countryCodeISO3,
+                    "exposurePlaceCodes": df_stats_levl,
+                    # "leadTime": self.leadTimeLabel,
+                    "dynamicIndicator": indicator,  # + '_affected',
+                    "adminLevel": adm_level,
+                }
+
+                with open(statsPath, "w") as fp:
+                    json.dump(exposure_data, fp)
+
+                upload_response = requests.post(
+                    url,
+                    json=exposure_data,
+                    headers={
+                        "Authorization": "Bearer " + token,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                )
+                print(upload_response)

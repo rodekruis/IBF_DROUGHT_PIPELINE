@@ -1,5 +1,8 @@
 from drought_model.exposure import Exposure
-from drought_model.GetData import GetData
+#from drought_model.GetData import GetData
+from drought_model.getdataethiopia import ICPACDATA
+
+
 from drought_model.dynamicDataDb import DatabaseManager
 from drought_model.ICPACForecastData import retrieve_icpac_forecast_ftp
 from drought_model.settings import *
@@ -17,16 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class Forecast:
-    def __init__(self, leadTimeLabel, leadTimeValue, countryCodeISO3, admin_level):
+    def __init__(self, leadTimeLabel, leadTimeValue, countryCodeISO3,SEASON,TRIGGER_SCENARIO, admin_level):
         self.leadTimeLabel = leadTimeLabel
+        self.TRIGGER_SCENARIO=TRIGGER_SCENARIO
+        self.SEASON = SEASON
         self.leadTimeValue = leadTimeValue
         self.admin_level = admin_level
         self.countryCodeISO3=countryCodeISO3
         self.outputPath = PIPELINE_DATA+'input/'
         self.db = DatabaseManager(leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level)
        
-        self.ftp_file_path=ftp_file_path  
-        self.output_filepath=PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
+        #self.ftp_file_path=ftp_file_path  
+        #self.output_filepath=PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
                 
         self.levels = SETTINGS[countryCodeISO3]['levels']
 
@@ -71,5 +76,6 @@ class Forecast:
 
         self.population_total =population_df
         #read glofas trigger levels from file
-        self.getdata = GetData(leadTimeLabel,leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
-        self.rp = retrieve_icpac_forecast_ftp(self.ftp_file_path,self.output_filepath)
+        #self.getdata = GetData(leadTimeLabel,leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
+        self.getdata_eth = ICPACDATA(self.leadTimeLabel,self.leadTimeValue,self.SEASON,TRIGGER_SCENARIO,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
+        #self.rp = retrieve_icpac_forecast_ftp(self.ftp_file_path,self.output_filepath)
