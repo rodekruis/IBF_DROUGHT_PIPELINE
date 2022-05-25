@@ -31,7 +31,6 @@ npm-debug.log*
 .npm
 
 # Secrets
-secrets
 pipeline/lib/drought_model/secrets.py
 
 

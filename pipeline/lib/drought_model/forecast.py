@@ -1,6 +1,8 @@
 from drought_model.exposure import Exposure
 #from drought_model.GetData import GetData
 from drought_model.getdataethiopia import ICPACDATA
+from drought_model.hotspotclass import HOTSPOTCLASS
+from drought_model.ipcclass import IPCCLASS
 
 
 from drought_model.dynamicDataDb import DatabaseManager
@@ -56,7 +58,8 @@ class Forecast:
             df_.rename(columns={"placeCode": f"placeCode_{adm_level}","placeCodeParent": f"placeCodeParent_{adm_level}"},inplace=True)            
             df_list[adm_level]=df_            
         
-        df=df_list[self.admin_level]        
+        df=df_list[self.admin_level]  
+        
         ################# Create a dataframe with pcodes for each admin level         
         for adm_level in self.levels:
             j=adm_level-1
@@ -75,7 +78,6 @@ class Forecast:
         self.admin_area_gdf = df_admin1
 
         self.population_total =population_df
-        #read glofas trigger levels from file
-        #self.getdata = GetData(leadTimeLabel,leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
         self.getdata_eth = ICPACDATA(self.leadTimeLabel,self.leadTimeValue,self.SEASON,TRIGGER_SCENARIO,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
-        #self.rp = retrieve_icpac_forecast_ftp(self.ftp_file_path,self.output_filepath)
+        self.hotspot=HOTSPOTCLASS(self.countryCodeISO3)
+        self.ipc=IPCCLASS(self.countryCodeISO3)

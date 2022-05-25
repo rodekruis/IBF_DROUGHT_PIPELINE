@@ -30,14 +30,14 @@ class HOTSPOTCLASS:
     def __init__(
         self,
         countryCodeISO3,
-        admin_level,
     ):
         self.countryCodeISO3 = countryCodeISO3
         self.levels = SETTINGS[countryCodeISO3]["levels"]
         self.PIPELINE_OUTPUT = self.PIPELINE_OUTPUT
+        self.PIPELINE_INPUT = self.PIPELINE_INPUT
 
         hs_woreda_data = (
-            PIPELINE_INPUT
+            self.PIPELINE_INPUT
             + "National level Hotspot Woreda classification Jan2021-Final.xlsx"
         )
         hs = pd.read_excel(
@@ -68,9 +68,9 @@ class HOTSPOTCLASS:
             ]
         ]
         df2[cols] = df2[cols].apply(pd.to_numeric, errors="coerce", axis=1)
-        df2 = df2.fillna(0)
+        df2 = df2.fillna(0.1)
 
-        admin_woreda_eth = PIPELINE_INPUT + "ETH_adm3.geojson"
+        admin_woreda_eth = self.PIPELINE_INPUT + "ETH_adm3.geojson"
 
         eth_admin = gpd.read_file(admin_woreda_eth)  # fc.admin_area_gdf
 
@@ -87,7 +87,7 @@ class HOTSPOTCLASS:
         url = IBF_API_URL + "/api/admin-area-data/upload/json"
         # login
         login_response = requests.post(
-            f"{IBF_API_URL}api/user/login",
+            f"{IBF_API_URL}/api/user/login",
             data=[("email", ADMIN_LOGIN), ("password", ADMIN_PASSWORD)],
         )
         token = login_response.json()["user"]["token"]
@@ -109,23 +109,25 @@ class HOTSPOTCLASS:
                 )
                 statsPath = (
                     self.PIPELINE_OUTPUT
-                    + "calculated_affected/affected_"
+                    + "dynamic_indicators/indiator_"
                     # + str(self.leadTimeValue)
                     + "_"
                     + self.countryCodeISO3
                     + "_admin_"
                     + str(adm_level)
                     + "_"
-                    + c
+                    + indicator
                     + ".json"
                 )
 
                 exposure_data = {
                     "countryCodeISO3": self.countryCodeISO3,
-                    "exposurePlaceCodes": df_stats_levl,
-                    # "leadTime": self.leadTimeLabel,
-                    "dynamicIndicator": indicator,  # + '_affected',
                     "adminLevel": adm_level,
+                    "indicator": indicator,
+                    # "dynamicIndicator": indicator, #"exposurePlaceCodes": df_stats_levl,
+                    "dataPlaceCode": df_stats_levl,
+                    # "leadTime": self.leadTimeLabel,
+                    # + '_affected',
                 }
 
                 with open(statsPath, "w") as fp:
