@@ -33,7 +33,7 @@ def main():
     logger.info(str(datetime.datetime.now()))
     try:
         for COUNTRY_CODE in COUNTRY_CODES.keys():
-            logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')
+            logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')  
             for SEASON in COUNTRY_CODES[COUNTRY_CODE]['seasons']:
                 logger.info(f'--------STARTING: {SEASON}' + '--------------------------')
                 COUNTRY_SETTINGS = SETTINGS[COUNTRY_CODE]
@@ -54,6 +54,9 @@ def main():
                     logger.info('--------Finished upload')
                 #fc.db.sendNotification()
                 #logger.info('--------Finished notification')
+            if COUNTRY_CODE=='ETH':
+                fc.hotspot()
+                fc.ipc()                
     except Exception as e:
         logger.error("Drought Data PIPELINE ERROR")
         logger.error(e)
