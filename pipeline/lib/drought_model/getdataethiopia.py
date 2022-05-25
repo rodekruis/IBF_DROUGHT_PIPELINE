@@ -64,7 +64,7 @@ class ICPACDATA:
 
         self.TRIGGER_threshold = SETTINGS[countryCodeISO3]["TRIGGER_threshold"][0]
         self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]["EXPOSURE_DATA_SOURCES"]
-        self.DYNAMIC_INDICATORS = SETTINGS["DYNAMIC_INDICATORS"]
+        self.DYNAMIC_INDICATORS = SETTINGS[countryCodeISO3]["DYNAMIC_INDICATORS"]
         self.TRIGGER_threshold_percentage = SETTINGS[countryCodeISO3][
             "TRIGGER_threshold"
         ][1]

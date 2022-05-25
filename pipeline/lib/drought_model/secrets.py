@@ -8,7 +8,10 @@ ETH_URL='https://ibf-test.510.global/api/'
 KEN_URL='https://ibf-test.510.global/api/'
 
 # API-service access
+
+IBF_API_URL='https://ibf-test.510.global'
 ADMIN_LOGIN = 'dunant@redcross.nl'
+ADMIN_PASSWORD='password' 
 
 UGA_PASSWORD='password' 
 ZMB_PASSWORD='password' 

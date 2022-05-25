@@ -33,9 +33,13 @@ class HOTSPOTCLASS:
     ):
         self.countryCodeISO3 = countryCodeISO3
         self.levels = SETTINGS[countryCodeISO3]["levels"]
-        self.PIPELINE_OUTPUT = self.PIPELINE_OUTPUT
-        self.PIPELINE_INPUT = self.PIPELINE_INPUT
+        self.PIPELINE_OUTPUT = PIPELINE_OUTPUT
+        self.PIPELINE_INPUT = PIPELINE_INPUT
 
+
+
+    ##################### hotspot
+    def processing(self):
         hs_woreda_data = (
             self.PIPELINE_INPUT
             + "National level Hotspot Woreda classification Jan2021-Final.xlsx"
@@ -80,10 +84,7 @@ class HOTSPOTCLASS:
             how="left",
             left_on="ADM3_PCODE",
             right_on="ADM3_PCODE",
-        )
-
-    ##################### hotspot
-    def processing(self):
+        ) 
         url = IBF_API_URL + "/api/admin-area-data/upload/json"
         # login
         login_response = requests.post(
@@ -98,13 +99,14 @@ class HOTSPOTCLASS:
             "Hotspot_Nutrition",
             "Hotspot_Health",
         ]:  # df2.columns:
-            for adm_level in self.levels:  # SETTINGS[self.countryCodeISO3]["levels"]:
+            for adm_level in [1,2,3]:#self.levels:  # SETTINGS[self.countryCodeISO3]["levels"]:
                 df_stats = pd.DataFrame()
                 df_stats["placeCode"] = hs_df[f"ADM{adm_level}_PCODE"]
                 df_stats["amount"] = hs_df[indicator]
-                df_stats_levl = df_stats.groupby("placeCode").agg({"amount": "sum"})
+                df_stats_levl = df_stats.groupby("placeCode").agg({"amount": "max"})
                 df_stats_levl.reset_index(inplace=True)
-                df_stats_levl = df_stats_levl[["amount", "placeCode"]].to_dict(
+                df_stats_levl = df_stats_levl.fillna(0.1)
+                df_stats_levl = df_stats_levl[[ "placeCode","amount"]].to_dict(
                     orient="records"
                 )
                 statsPath = (

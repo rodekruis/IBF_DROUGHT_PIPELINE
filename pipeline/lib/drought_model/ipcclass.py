@@ -39,20 +39,24 @@ class IPCCLASS:
     ):
         self.countryCodeISO3 = countryCodeISO3
         self.levels = SETTINGS[countryCodeISO3]["levels"]
-        self.PIPELINE_OUTPUT = self.PIPELINE_OUTPUT
+        self.PIPELINE_OUTPUT = PIPELINE_OUTPUT
+        self.PIPELINE_INPUT = PIPELINE_INPUT
+        self.CURRENT_Year=CURRENT_Year
+        self.Now_Month_nummeric=Now_Month_nummeric
+        
 
-        admin_woreda_eth = PIPELINE_INPUT + "ETH_adm3.geojson"
-        eth_admin = gpd.read_file(admin_woreda_eth)  # fc.admin_area_gdf
+        admin_woreda_eth = self.PIPELINE_INPUT + "ETH_adm3.geojson"
+        self.eth_admin = gpd.read_file(admin_woreda_eth)  # fc.admin_area_gdf
 
 
-    def downloadipc(self):
+    def downloadipc(self,):
         """ """
-        yearmonth = f"{CURRENT_Year}-{Now_Month_nummeric}"
+        yearmonth = f"{self.CURRENT_Year}-{self.Now_Month_nummeric}"
 
         filename = (
-            PIPELINE_INPUT
+            self.PIPELINE_INPUT
             + "ipc/raw/"
-            + f"east_afria_{CURRENT_Year}-{Now_Month_nummeric}.zip"
+            + f"east_afria_{self.CURRENT_Year}-{self.Now_Month_nummeric}.zip"
         )
 
         new_ipc_url = f"https://fdw.fews.net/api/ipcpackage/?country_group=902&collection_date={yearmonth}-01"
@@ -61,36 +65,37 @@ class IPCCLASS:
 
         urllib.request.urlretrieve("{0}".format(new_ipc_url), filename)
 
-    def extractipcfiles(self):
-        directory_to_extract_to = PIPELINE_INPUT + "ipc/raw/"
+    def proccessing(self):
+        self.downloadipc()
+        directory_to_extract_to = self.PIPELINE_INPUT + "ipc/raw/"
 
         path_to_zip_file = (
-            PIPELINE_INPUT
+            self.PIPELINE_INPUT
             + "ipc/raw/"
-            + f"east_afria_{CURRENT_Year}-{Now_Month_nummeric}.zip"
+            + f"east_afria_{self.CURRENT_Year}-{self.Now_Month_nummeric}.zip"
         )
 
         with zipfile.ZipFile(path_to_zip_file, "r") as zip_ref:
             zip_ref.extractall(directory_to_extract_to)
 
         ML1_FILE = (
-            PIPELINE_INPUT
+            self.PIPELINE_INPUT
             + "ipc/raw/"
-            + f"EA_{CURRENT_Year}{Now_Month_nummeric}_ML1.shp"
+            + f"EA_{self.CURRENT_Year}{self.Now_Month_nummeric}_ML1.shp"
         )
         ML2_FILE = (
-            PIPELINE_INPUT
+            self.PIPELINE_INPUT
             + "ipc/raw/"
-            + f"EA_{CURRENT_Year}{Now_Month_nummeric}_ML2.shp"
+            + f"EA_{self.CURRENT_Year}{self.Now_Month_nummeric}_ML2.shp"
         )
 
         ML1_ = gpd.read_file(ML1_FILE)
         ML2_ = gpd.read_file(ML2_FILE)
-        gdf_lhz_cs_merged = gpd.sjoin(eth_admin, ML1_, how="left")
+        gdf_lhz_cs_merged = gpd.sjoin(self.eth_admin, ML1_, how="left")
         df = gdf_lhz_cs_merged[["ADM3_PCODE", "ML1"]].query("ML1 < 6")
         df = df.iloc[df.reset_index().groupby(["ADM3_PCODE"])["ML1"].idxmax()]
         # gdf_lhz_cs_merged = gpd.sjoin(moz_lzh, CS_,how='left')
-        gdf_lhz_cs_merged = gpd.sjoin(eth_admin, ML2_, how="left")
+        gdf_lhz_cs_merged = gpd.sjoin(self.eth_admin, ML2_, how="left")
         # df=gdf_lhz_cs_merged[['FNID','CS']].query('CS < 6')
         df2 = gdf_lhz_cs_merged[["ADM3_PCODE", "ML2"]].query("ML2 < 6")
         df2 = df2.iloc[df2.reset_index().groupby(["ADM3_PCODE"])["ML2"].idxmax()]
@@ -104,7 +109,7 @@ class IPCCLASS:
         df2 = df2.fillna(0)
 
         ipc_df = pd.merge(
-            eth_admin, df2, how="left", left_on="ADM3_PCODE", right_on="ADM3_PCODE"
+            self.eth_admin, df2, how="left", left_on="ADM3_PCODE", right_on="ADM3_PCODE"
         )
         
         url = IBF_API_URL + "/api/admin-area-data/upload/json"
@@ -121,7 +126,7 @@ class IPCCLASS:
                 df_stats = pd.DataFrame()
                 df_stats["placeCode"] = ipc_df[f"ADM{adm_level}_PCODE"]
                 df_stats["amount"] = ipc_df[indicator]
-                df_stats_levl = df_stats.groupby("placeCode").agg({"amount": "sum"})
+                df_stats_levl = df_stats.groupby("placeCode").agg({"amount": "max"})
                 df_stats_levl.reset_index(inplace=True)
                 df_stats_levl = df_stats_levl[["amount", "placeCode"]].to_dict(
                     orient="records"
