@@ -38,7 +38,8 @@ PySocks==1.7.1
 python-dateutil==2.8.1
 pytz==2021.1
 pyxdg==0.25
-rasterio==1.2.0
+#rasterio==1.2.0
+rasterio==1.2.10
 rasterstats==0.15.0
 requests==2.25.1
 requests-futures==1.0.0
@@ -58,4 +59,9 @@ xarray==0.16.2
 googledrivedownloader==0.4
 azure-keyvault-secrets
 azure-identity
-
+geocube
+pdfplumber
+pylint
+pycodestyle
+tabula
+numba

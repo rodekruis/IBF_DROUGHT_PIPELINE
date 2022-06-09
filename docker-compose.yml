@@ -8,4 +8,4 @@ services:
       - "587:587"
     volumes: 
       - ./pipeline:/home/ibf
-    command: run-flood-model
+    command: run-drought-model
