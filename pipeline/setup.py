@@ -16,7 +16,7 @@ setuptools.setup(
     version="0.1",
     author="aklilu_dinkneh",
     author_email="ateklesadik@redcross.nl",
-    description="flood trigger model",
+    description="drought trigger model",
     package_dir={"": "lib"},
     packages=setuptools.find_packages(where="lib"),
     #install_requires=install_requires,
@@ -28,7 +28,7 @@ setuptools.setup(
     },
     entry_points={
         'console_scripts': [
-            f"run-flood-model = {PROJECT_NAME}.runPipeline:main",
+            f"run-drought-model = {PROJECT_NAME}.runPipeline:main",
         ]
     }
 )

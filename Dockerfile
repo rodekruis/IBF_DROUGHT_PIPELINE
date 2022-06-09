@@ -1,5 +1,10 @@
 FROM ubuntu:18.04
 
+
+# Turns off buffering for easier container logging 
+ENV PYTHONUNBUFFERED=1 
+ 
+
 RUN mkdir --parents /home/ibf
 ENV HOME /home/ibf
 WORKDIR $HOME

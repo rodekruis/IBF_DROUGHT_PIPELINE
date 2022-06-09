@@ -1,15 +1,15 @@
 """
+Drought pipeline for IBF Kenya
 Author: Aklilu Teklesadik (Ateklesadik@redcross.nl)
  
 """
 import pandas as pd
 from shapely.geometry import Point
 import fiona
-import matplotlib.pyplot as plt
 import pdfplumber
 import geopandas as gpd
 import tabula
-from tabula import read_pdf
+#from tabula import read_pdf
 import re
 import json
 import numpy as np
@@ -36,18 +36,33 @@ class GetData:
         self.countryCodeISO3 = countryCodeISO3
         self.admin_level=admin_level
         self.inputPath = PIPELINE_DATA+'input/'
-        self.TRIGGER_PROB=TRIGGER_PROBABILITY
-        self.TRIGGER_PROBABILITY_RAIN=TRIGGER_PROBABILITY_RAIN
+        
+        self.TRIGGER_PROB = SETTINGS[countryCodeISO3]["TRIGGER_PROBABILITY"]
+        self.TRIGGER_PROBABILITY_RAIN = SETTINGS[countryCodeISO3]["TRIGGER_rain_prob_threshold"][0] 
+        self.triggger_prob=SETTINGS[countryCodeISO3]["TRIGGER_rain_prob_threshold"][1]
+        self.SPI_Threshold_Prob=SETTINGS[countryCodeISO3]["SPI_Threshold_Prob"]          
+ 
+        
+    
         self.outputPath = PIPELINE_DATA+'input/'
         self.spiforecast=PIPELINE_DATA+'input/ond_forecast.csv'
-        self.triggger_prob=TRIGGER_PROBABILITY
+        
         self.ADMIN_AREA_GDF = admin_area_gdf
         self.FILE_PATH=NDRMC_BULLETIN_FILE_PATH
-        self.SPI_Threshold_Prob=SPI_Threshold_Prob
+        
         self.population_df=population_total
         self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
         self.EXPOSURE_DATA_SOURCES= SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
-        self.output_filepath=PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
+        self.Icpac_Forecast_FtpPath = Icpac_Forecast_FtpPath
+        self.Icpac_Forecast_FilePath = Icpac_Forecast_FilePath
+        self.Icpac_Forecast_FtpPath_Rain = Icpac_Forecast_FtpPath_Rain
+        self.Icpac_Forecast_FilePath_Rain = Icpac_Forecast_FilePath_Rain
+
+        self.ICPAC_FTP_ADDRESS = ICPAC_FTP_ADDRESS
+        self.ICPAC_FTP_USERNAME = ICPAC_FTP_USERNAME
+        self.ICPAC_FTP_PASSWORD = ICPAC_FTP_PASSWORD
+        
+        self.output_filepath=Icpac_Forecast_FilePath_Rain#PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
         
         if not os.path.exists(self.inputPath):
             os.makedirs(self.inputPath)

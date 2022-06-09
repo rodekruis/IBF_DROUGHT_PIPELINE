@@ -1,4 +1,6 @@
 import os
+from os import listdir
+from os.path import isfile, join
 import geopandas as gpd
 import numpy
 import rioxarray
@@ -15,6 +17,8 @@ from datetime import datetime
 import re
 import json
 import logging
+import requests
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +53,15 @@ class ICPACDATA:
         self.leadTimeValue = leadTimeValue
         self.TRIGGER_SCENARIO = TRIGGER_SCENARIO
         self.SEASON = SEASON
+        self.admin_level = SETTINGS[self.countryCodeISO3]['admin_level']
         self.RASTER_OUTPUT = RASTER_OUTPUT
         self.countryCodeISO3 = countryCodeISO3
         self.population_df = population_total
+        self.ADMIN_LOGIN=ADMIN_LOGIN
+        
+        self.API_SERVICE_URL =SETTINGS[countryCodeISO3]['IBF_API_URL']
+        self.ADMIN_PASSWORD = SETTINGS[countryCodeISO3]['PASSWORD']
+
 
         self.Icpac_Forecast_FtpPath = Icpac_Forecast_FtpPath
         self.Icpac_Forecast_FilePath = Icpac_Forecast_FilePath
@@ -61,24 +71,28 @@ class ICPACDATA:
         self.ICPAC_FTP_ADDRESS = ICPAC_FTP_ADDRESS
         self.ICPAC_FTP_USERNAME = ICPAC_FTP_USERNAME
         self.ICPAC_FTP_PASSWORD = ICPAC_FTP_PASSWORD
+        self.PIPELINE_OUTPUT = PIPELINE_OUTPUT
 
-        self.TRIGGER_threshold = SETTINGS[countryCodeISO3]["TRIGGER_threshold"][0]
-        self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]["EXPOSURE_DATA_SOURCES"]
-        self.DYNAMIC_INDICATORS = SETTINGS[countryCodeISO3]["DYNAMIC_INDICATORS"]
-        self.TRIGGER_threshold_percentage = SETTINGS[countryCodeISO3][
+        self.TRIGGER_threshold = SETTINGS[self.countryCodeISO3]["TRIGGER_threshold"][0]
+        self.EXPOSURE_DATA_SOURCES = SETTINGS[self.countryCodeISO3][
+            "EXPOSURE_DATA_SOURCES"
+        ]
+        self.DYNAMIC_INDICATORS = SETTINGS[self.countryCodeISO3]["DYNAMIC_INDICATORS"]
+        self.TRIGGER_threshold_percentage = SETTINGS[self.countryCodeISO3][
             "TRIGGER_threshold"
         ][1]
 
-        self.TRIGGER_rain_prob_threshold = SETTINGS[countryCodeISO3][
+        self.TRIGGER_rain_prob_threshold = SETTINGS[self.countryCodeISO3][
             "TRIGGER_rain_prob_threshold"
         ][0]
-        self.TRIGGER_rain_prob_threshold_percentage = SETTINGS[countryCodeISO3][
+        self.TRIGGER_rain_prob_threshold_percentage = SETTINGS[self.countryCodeISO3][
             "TRIGGER_rain_prob_threshold"
         ][1]
 
         croping_zones_pcode = PIPELINE_INPUT + "croping_zones_pcode.csv"
 
         crop_df = pd.read_csv(croping_zones_pcode)
+
         admin_zones_eth = PIPELINE_INPUT + "admin2.geojson"
         admin_df = gpd.read_file(admin_zones_eth)  # fc.admin_area_gdf
         admin_area_gdf = admin_df
@@ -104,6 +118,7 @@ class ICPACDATA:
         admin_df["cropzone"] = admin_df.Crop_group.astype(int)
 
         self.admin_df = admin_df
+        self.downloadforecast()
 
     def downloadforecast(self):
         try:
@@ -113,114 +128,147 @@ class ICPACDATA:
             pass
 
     def processing(self):
-
+        logger.info("processing rain data")
         spi_data = self.process_rain_total_eth()
+        profile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_trigger.csv"
+        # spi_data=pd.read_csv(profile_name)
         # drought_indicators=self.read_bulletin()
         df = self.population_df
         df_spi = pd.merge(df, spi_data, how="left", on="placeCode")
+        logger.info(f"processing {self.TRIGGER_SCENARIO}")
         df_spi["trigger"] = df_spi[self.TRIGGER_SCENARIO].fillna(0)
+        logger.info("processing population_affected data")
         df_spi["population_affected"] = df_spi.apply(
             lambda row: row.trigger * row.value, axis=1
         )
+        df_spi.to_csv(profile_name)
+
         return df_spi
 
     def callAllExposure(self):
 
         df_total = self.processing()
-        # drought_indicators=self.read_bulletin()
-        # for indicator, values in self.DYNAMIC_INDICATORS.items():
-        # df_stats_levl=drought_indicators[indicator]
-        # self.statsPath=PIPELINE_OUTPUT + 'calculated_affected/affected_' + \
-        # str(self.leadTimeValue) + '_' + self.countryCodeISO3 +'_admin_' +str(self.admin_level) + '_' + indicator + '.json'
-        # result = {
-        # 'countryCodeISO3': self.countryCodeISO3,
-        # 'exposurePlaceCodes': df_stats_levl,
-        # 'leadTime': self.leadTimeLabel,
-        # 'dynamicIndicator': indicator,
-        # 'adminLevel': self.admin_level
-        # }
+        profile_name = self.PIPELINE_OUTPUT + f"{self.countryCodeISO3}_trigger_.csv"
+        df_total.to_csv(profile_name)
+        EXPOSURES = SETTINGS[self.countryCodeISO3]["EXPOSURE_DATA_SOURCES"]
 
-        # with open(self.statsPath, 'w') as fp:
-        # json.dump(result, fp)
+        
 
-        for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
+
+        IBF_API_URL =SETTINGS[self.countryCodeISO3]['IBF_API_URL']
+        ADMIN_PASSWORD = SETTINGS[self.countryCodeISO3]['PASSWORD']
+        
+
+        # login
+        login_response = requests.post(f'{IBF_API_URL}user/login',
+                                       data=[('email', ADMIN_LOGIN), ('password', ADMIN_PASSWORD)])
+                                       
+        if login_response.status_code >= 400:
+            logging.error(f"PIPELINE ERROR AT LOGIN {login_response.status_code}: {login_response.text}")
+            sys.exit()
+        token = login_response.json()['user']['token']
+    
+   
+        for indicator, values in EXPOSURES.items():
             try:
                 logger.info(f"indicator: {indicator}")
                 df_total["amount"] = df_total[indicator]
-                population_affected = df_total[["placeCode", "amount"]]
-                stats = population_affected.to_dict(orient="records")
-                df_stats = pd.DataFrame(stats)
-                # stats_dff = pd.merge(df,self.pcode_df,  how='left',left_on='placeCode', right_on = f'placeCode_{self.admin_level}')
-                for adm_level in SETTINGS[self.countryCodeISO3]["levels"]:
-                    if adm_level == self.admin_level:
-                        df_stats_levl = stats
-                    else:
-                        df_stats_levl = df_stats.groupby(f"placeCode_{adm_level}").agg(
-                            {"amount": "sum"}
-                        )
-                        df_stats_levl.reset_index(inplace=True)
-                        df_stats_levl["placeCode"] = df_stats_levl[
-                            f"placeCode_{adm_level}"
-                        ]
-                        df_stats_levl = df_stats_levl[["amount", "placeCode"]].to_dict(
-                            orient="records"
-                        )
+                statsdf = df_total[["placeCode", "amount"]]
+                stats = statsdf.to_dict(orient="records")  
+                
+                exposure_data = {'countryCodeISO3': self.countryCodeISO3}
+                exposure_data['exposurePlaceCodes'] = stats
+                exposure_data["adminLevel"] = 2#self.admin_level
+                exposure_data["leadTime"] = self.leadTimeLabel
+                exposure_data["dynamicIndicator"] = indicator
+                exposure_data["disasterType"] = 'drought'
+                
 
-                    self.statsPath = (
-                        PIPELINE_OUTPUT
-                        + "calculated_affected/affected_"
+                #statsPath =self.PIPELINE_OUTPUT+ "file.json"#calculated_affected/affected_"+ str(self.leadTimeValue)+ "_"+ self.countryCodeISO3+ "_admin_"+ str(self.admin_level)+ "_"+ indicator+ ".json"
+                statsPath = (
+                    self.PIPELINE_OUTPUT
+                    + "affected_"
+                    + str(self.leadTimeValue)
+                    + "_"
+                    + self.countryCodeISO3
+                    + "_admin_"
+                    + indicator
+                    + ".json"
+                )
+
+
+                with open(statsPath, 'w') as f:
+                    json.dump(exposure_data, f)
+                    
+                   
+                # upload data
+                logger.info(f'start Uploading calculated_affected for indicator: {indicator}' )
+                upload_response = requests.post(f'{IBF_API_URL}admin-area-dynamic-data/exposure',
+                                                json=exposure_data,
+                                                headers={'Authorization': 'Bearer '+token,
+                                                         'Content-Type': 'application/json',
+                                                         'Accept': 'application/json'})
+                                                     
+                                                     
+                logger.info(f'Uploaded calculated_affected for indicator: {indicator}' )
+                if upload_response.status_code >= 400:
+                    logging.error(f"PIPELINE ERROR AT UPLOAD {login_response.status_code}: {login_response.text}")
+                    sys.exit()
+
+                if indicator == "population_affected":
+                    alert_threshold = list(map(self.get_alert_threshold, stats))  
+
+                    alert_threshold_file_path = (
+                        self.PIPELINE_OUTPUT
+                        + "affected_"
                         + str(self.leadTimeValue)
                         + "_"
                         + self.countryCodeISO3
                         + "_admin_"
-                        + str(adm_level)
-                        + "_"
-                        + indicator
+                        + "alert_threshold"
                         + ".json"
                     )
+                    
+                    alert_threshold_records = {'countryCodeISO3': self.countryCodeISO3}
+                    alert_threshold_records['exposurePlaceCodes'] = alert_threshold
+                    alert_threshold_records["adminLevel"] = 2#self.admin_level
+                    alert_threshold_records["leadTime"] = self.leadTimeLabel
+                    alert_threshold_records["dynamicIndicator"] = 'alert_threshold'
+                    alert_threshold_records["disasterType"] = 'drought'
+                    
 
-                    result = {
-                        "countryCodeISO3": self.countryCodeISO3,
-                        "exposurePlaceCodes": df_stats_levl,
-                        "leadTime": self.leadTimeLabel,
-                        "dynamicIndicator": indicator,  # + '_affected',
-                        "adminLevel": adm_level,
-                    }
+                    # upload data
+                    upload_response = requests.post(f'{IBF_API_URL}admin-area-dynamic-data/exposure',
+                                                    json=alert_threshold_records,                                                    headers={'Authorization': 'Bearer '+token,
+                                                             'Content-Type': 'application/json',
+                                                             'Accept': 'application/json'})
+                                                         
+                                                         
+                    logger.info('Uploaded calculated_affected for indicator: alert_threshold' )
+                    if upload_response.status_code >= 400:
+                        logging.error(f"PIPELINE ERROR AT UPLOAD {login_response.status_code}: {login_response.text}")
+                        sys.exit() 
+                    
+ 
 
-                    with open(self.statsPath, "w") as fp:
-                        json.dump(result, fp)
+                    with open(alert_threshold_file_path, "w") as fp:
+                        json.dump(alert_threshold_records, fp)
 
-                    if indicator == "population_affected":
-                        alert_threshold = list(
-                            map(self.get_alert_threshold, df_stats_levl)
-                        )
-
-                        alert_threshold_file_path = (
-                            PIPELINE_OUTPUT
-                            + "calculated_affected/affected_"
-                            + str(self.leadTimeValue)
-                            + "_"
-                            + self.countryCodeISO3
-                            + "_admin_"
-                            + str(adm_level)
-                            + "_"
-                            + "alert_threshold"
-                            + ".json"
-                        )
-
-                        alert_threshold_records = {
-                            "countryCodeISO3": self.countryCodeISO3,
-                            "exposurePlaceCodes": alert_threshold,
-                            "leadTime": self.leadTimeLabel,
-                            "dynamicIndicator": "alert_threshold",
-                            "adminLevel": adm_level,
-                        }
-
-                        with open(alert_threshold_file_path, "w") as fp:
-                            json.dump(alert_threshold_records, fp)
             except:
                 logger.info(f"failed to output for indicator: {indicator}")
                 pass
+
+    def get_alert_threshold(self, population_affected):
+        # population_total = next((x for x in self.population_total if x['placeCode'] == population_affected['placeCode']), None)
+        alert_threshold = 0
+        if population_affected["amount"] > 0:
+            alert_threshold = 1
+        else:
+            alert_threshold = 0
+        return {
+            "amount": alert_threshold,
+            "placeCode": population_affected["placeCode"],
+        }
 
     def process_rain_total_eth(self):
 
@@ -262,11 +310,19 @@ class ICPACDATA:
         historical_rain_data = RASTER_INPUT + "CHIRPS/chirps-*.tif"
         geotiff_list = glob.glob(historical_rain_data)
 
+        historical_rain_data_dir = RASTER_INPUT + "CHIRPS/"
+
+        geotiff_list_ = [
+            f
+            for f in listdir(historical_rain_data_dir)
+            if isfile(join(historical_rain_data_dir, f))
+        ]
+
         time_var = xr.Variable(
             "time",
             [
-                datetime.strptime(items.split("\\")[-1][12:19], "%Y.%m")
-                for items in geotiff_list
+                datetime.strptime(items.split("-")[-1][5:12], "%Y.%m")
+                for items in geotiff_list_
             ],
         )
 
@@ -404,8 +460,9 @@ class ICPACDATA:
             zonal_stats_df_obs["percentage"] < self.TRIGGER_threshold_percentage,
             "Trigger_threshold_spi_obs",
         ] = 0
-        spifile_name = PIPELINE_OUTPUT + "zonalstats_spi.csv"
-        profile_name = PIPELINE_OUTPUT + "zonalstats_obs.csv"
+
+        spifile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_SPI3_prediction.csv"
+        profile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_SPI3_observed.csv"
         zonal_stats_df.to_csv(spifile_name)
         zonal_stats_df_obs.to_csv(profile_name)
 
@@ -497,7 +554,9 @@ class ICPACDATA:
             < self.TRIGGER_rain_prob_threshold_percentage,
             "Trigger_threshold_below",
         ] = 0
-        profile_name = PIPELINE_OUTPUT + "zonalstats_prob.csv"
+        profile_name = (
+            PIPELINE_OUTPUT + f"{self.countryCodeISO3}_below_average_prob.csv"
+        )
         zonal_stats_rain_prob_df.to_csv(profile_name)
 
         threshold_df = pd.merge(
@@ -519,6 +578,8 @@ class ICPACDATA:
             ),
             axis=1,
         )
+        profile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_thresholds.csv"
+        threshold_df.to_csv(profile_name)
 
         return threshold_df
 

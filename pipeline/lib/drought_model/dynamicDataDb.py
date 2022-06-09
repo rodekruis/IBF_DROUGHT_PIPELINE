@@ -22,9 +22,11 @@ class DatabaseManager:
         self.leadTimeValue =leadTimeValue
         self.triggerFolder = PIPELINE_OUTPUT + "triggers_rp_per_station/"
         self.affectedFolder = PIPELINE_OUTPUT + "calculated_affected/"
+        
         self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
         self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
-        self.API_SERVICE_URL = SETTINGS[countryCodeISO3]['IBF_API_URL']
+        
+        self.API_SERVICE_URL =SETTINGS[countryCodeISO3]['IBF_API_URL']
         self.ADMIN_PASSWORD = SETTINGS[countryCodeISO3]['PASSWORD']
         self.levels = SETTINGS[countryCodeISO3]['levels']
         self.admin_level = admin_level
@@ -149,9 +151,9 @@ class DatabaseManager:
             raise ValueError()
 
     def apiAuthenticate(self):
-        API_LOGIN_URL=self.API_SERVICE_URL+'user/login'
+        API_LOGIN_URL=self.API_SERVICE_URL+'user/login'        
         login_response = requests.post(API_LOGIN_URL, data=[(
-            'email', ADMIN_LOGIN), ('password', self.ADMIN_PASSWORD)])
+            'email', ADMIN_LOGIN), ('password',  self.ADMIN_PASSWORD)])
         return login_response.json()['user']['token']
 
     def getDataFromDatalake(self, path):

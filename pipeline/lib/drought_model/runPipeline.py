@@ -8,7 +8,7 @@ try:
 except ImportError:
     print('No secrets file found.')
 from drought_model.exposure import Exposure
-#import resource
+import resource
 import os
 import logging
 #from google_drive_downloader import GoogleDriveDownloader as gdd
@@ -44,8 +44,10 @@ def main():
                     logger.info(f'--------STARTING: {leadTimeLabel}' + '--------------------------')
                     fc = Forecast(leadTimeLabel, leadTimeValue, COUNTRY_CODE,SEASON,TRIGGER_SCENARIO,COUNTRY_SETTINGS['admin_level'])
                     if COUNTRY_CODE=='KEN':
+                        logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')
                         fc.getdata.callAllExposure()               
                     elif COUNTRY_CODE=='ETH':
+                        logger.info(f'--------STARTING: {COUNTRY_CODE}' + '--------------------------')
                         fc.getdata_eth.callAllExposure()               
                     logger.info('--------Finished exposure data Processing')
                     #fc.getdata.callAllExposure()  
