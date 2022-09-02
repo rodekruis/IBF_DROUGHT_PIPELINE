@@ -1,48 +1,47 @@
 ##################
 ## LOAD SECRETS ##
 ##################
-
-# 1. Try to load secrets from Azure key vault (i.e. when running through Logic App) if user has access
 from datetime import date,timedelta
 from dateutil.relativedelta import relativedelta
 
-# try:
-    # from azure.identity import DefaultAzureCredential
-    # from azure.keyvault.secrets import SecretClient
+# 1. Try to load secrets from Azure key vault (i.e. when running through Logic App) if user has access
 
-    # az_credential = DefaultAzureCredential()
-    # secret_client = SecretClient(
-        # vault_url="https://ibf-flood-keys.vault.azure.net", credential=az_credential
-    # )
 
-    # ADMIN_LOGIN = secret_client.get_secret("ADMIN-LOGIN").value    
-    # IBF_URL=secret_client.get_secret("IBF-URL").value    
-    # IBF_PASSWORD=secret_client.get_secret("IBF-PASSWORD").value    
+try:
+    from azure.identity import DefaultAzureCredential
+    from azure.keyvault.secrets import SecretClient
 
-# except Exception as e:
-    # print("No access to Azure Key vault, skipping.")
+    az_credential = DefaultAzureCredential()
+    secret_client = SecretClient(
+        vault_url="https://ibf-flood-keys.vault.azure.net", credential=az_credential
+    )
 
-# 2. Try to load secrets from env-variables (i.e. when using Github Actions)
-# try:
-    # import os
+    ADMIN_LOGIN = secret_client.get_secret("ADMIN-LOGIN").value    
+    IBF_URL=secret_client.get_secret("IBF-URL").value    
+    IBF_PASSWORD=secret_client.get_secret("IBF-PASSWORD").value  
+    
+    DATALAKE_STORAGE_ACCOUNT_NAME = secret_client.get_secret("DATALAKE-STORAGE-ACCOUNT-NAME").value
+    DATALAKE_STORAGE_ACCOUNT_KEY = secret_client.get_secret("DATALAKE-STORAGE-ACCOUNT-KEY").value
+    DATALAKE_API_VERSION = '2018-11-09'    
 
-    # ADMIN_LOGIN = os.environ["ADMIN_LOGIN"]
-    # GLOFAS_USER = os.environ["GLOFAS_USER"]
-    # GLOFAS_PW = os.environ["GLOFAS_PW"]
-    # GOOGLE_DRIVE_DATA_URL = os.environ["GOOGLE_DRIVE_DATA_URL"]
-    # IBF_URL=os.environ['IBF_API_URL']
-    # UGA_URL = os.environ["UGA_URL"]
-    # ZMB_URL = os.environ["ZMB_URL"]
-    # ETH_URL = os.environ["ETH_URL"]
-    # KEN_URL = os.environ["KEN_URL"]
-    # IBF_PASSWORD=os.environ['IBF_PASSWORD']
-    # UGA_PASSWORD = os.environ["UGA_PASSWORD"]
-    # ZMB_PASSWORD = os.environ["ZMB_PASSWORD"]
-    # ETH_PASSWORD = os.environ["ETH_PASSWORD"]
-    # KEN_PASSWORD = os.environ["KEN_PASSWORD"]
+except Exception as e:
+    print("No access to Azure Key vault, skipping.")
 
-#except Exception as e:
- #   print("No environment variables found.")
+#2. Try to load secrets from env-variables (i.e. when using Github Actions)
+try:
+    import os
+
+    ADMIN_LOGIN = os.environ["ADMIN_LOGIN"]
+    GOOGLE_DRIVE_DATA_URL = os.environ["GOOGLE_DRIVE_DATA_URL"]
+    IBF_URL=os.environ['IBF_API_URL']
+    IBF_PASSWORD=os.environ['IBF_PASSWORD']
+    DATALAKE_STORAGE_ACCOUNT_NAME = os.environ["DATALAKE_STORAGE_ACCOUNT_NAME"]
+    DATALAKE_STORAGE_ACCOUNT_KEY_ = os.environ["DATALAKE_STORAGE_ACCOUNT_KEY"]
+    DATALAKE_STORAGE_ACCOUNT_KEY=f'{DATALAKE_STORAGE_ACCOUNT_KEY_}=='
+    DATALAKE_API_VERSION = '2018-11-09'
+
+except Exception as e:
+   print("No environment variables found.")
 
 # 3. If 1. and 2. both fail, then assume secrets are loaded via secrets.py file (when running locally). If neither of the 3 options apply, this script will fail.
 try:
@@ -57,7 +56,11 @@ except ImportError:
 
 # Countries to include
 
-COUNTRY_CODES = {'ETH': {'seasons': [2, 3, 4]}}#,'KEN':{'seasons':[1]},}
+COUNTRY_CODES = {
+    #'KEN':{'seasons':[1]},
+    'ETH': {'seasons': [2, 3, 4]},
+    #'UGA':{'seasons':[1]},
+    }
 
 
 #CROPPING_ZONES ethiopia = [2, 3, 4]
@@ -70,11 +73,17 @@ SETTINGS = {
     "ETH": {
         "IBF_API_URL": IBF_URL,
         "PASSWORD": IBF_PASSWORD,
+        "ADMIN_LOGIN": ADMIN_LOGIN,
         "TRIGGER_PROBABILITY": 25,#45
         "TRIGGER_SCENARIO": "Trigger_threshold_spi_obs",
         "TRIGGER_threshold": [-1, 10],
         "TRIGGER_rain_prob_threshold": [45, 1],
         "SPI_Threshold_Prob" : 'NA',
+        "TRIGGER_LEVELS":{"TRIGGER_PROBABILITY": 25,
+            "TRIGGER_SCENARIO": "Trigger_threshold_spi_obs",
+            "TRIGGER_threshold": [-1, 10],
+            "TRIGGER_rain_prob_threshold": [45, 1],
+            "SPI_Threshold_Prob" : 'NA'},
         "mock": False,
         "if_mock_trigger": False,
         "notify_email": False,
@@ -102,7 +111,7 @@ SETTINGS = {
                 3: ["0-month"],
                 4: ["0-month", "3-month"],
                 5: ["0-month", "2-month"],
-                6: ["0-month", "1-month"],
+                6: ["1-month"],
                 7: ["0-month"],
                 8: ["0-month"],
                 9: ["0-month"],
@@ -124,9 +133,11 @@ SETTINGS = {
         },
         "admin_level": 2,
         "levels": [2],
+        "admin_zones":"eth_admin2.geojson",
+        "croping_zones_pcode":"eth_croping_zones_pcode.csv",
         "EXPOSURE_DATA_SOURCES": {
             "population_affected": {
-                "source": "population/hrsl_ken_pop_resized_100",
+                "source": "population/hrsl_eth_pop_resized_100",
                 "rasterValue": 1,
             }
         },
@@ -139,11 +150,18 @@ SETTINGS = {
     "KEN": {
         "IBF_API_URL": IBF_URL,
         "PASSWORD": IBF_PASSWORD,
+        "ADMIN_LOGIN": ADMIN_LOGIN,
         "TRIGGER_PROBABILITY": 40,
         "TRIGGER_SCENARIO": "trigger_treshold_one",
         "TRIGGER_threshold": [-1, 30],          
         "TRIGGER_rain_prob_threshold": [40, 40],
-        "SPI_Threshold_Prob" : '0.16354',         
+        "SPI_Threshold_Prob" : '0.16354',  
+        "TRIGGER_LEVELS":{"TRIGGER_PROBABILITY": 40,
+            "TRIGGER_SCENARIO": "trigger_treshold_one",
+            "TRIGGER_threshold": [-1, 30],
+            "TRIGGER_rain_prob_threshold": [40, 40],
+            "SPI_Threshold_Prob" : '0.16354'},
+            
         "mock": False,
         "if_mock_trigger": False,
         "notify_email": False,
@@ -165,9 +183,70 @@ SETTINGS = {
         },
         "admin_level": 1,
         "levels": [1],
+        "admin_zones":"ken_admin1.geojson",
+        "croping_zones_pcode":"ken_croping_zones_pcode.csv",
         "EXPOSURE_DATA_SOURCES": {
             "population_affected": {
                 "source": "population/hrsl_ken_pop_resized_100",
+                "rasterValue": 1,
+            }
+        },
+        "DYNAMIC_INDICATORS": {
+            "livestock_body_condition": "livestock_body_condition",
+            "vegetation_condition": "vegetation_condition",
+            "drought_phase_classification": "drought_phase_classification",
+        },
+    },
+    "UGA": {
+        "IBF_API_URL": IBF_URL,
+        "PASSWORD": IBF_PASSWORD, 
+        "ADMIN_LOGIN": ADMIN_LOGIN,
+        "TRIGGER_LEVELS": {"TRIGGER_PROBABILITY": 25,
+            "TRIGGER_SCENARIO": "Trigger_threshold_spi_obs",
+            "TRIGGER_threshold": [-1, 10],
+            "TRIGGER_rain_prob_threshold": [45, 1],
+            "SPI_Threshold_Prob" : 'NA'},
+            
+        "mock": False,
+        "if_mock_trigger": False,
+        "notify_email": False,
+        "lead_times": {
+            1: {
+                1: ["3-month"],
+                2: ["2-month"],
+                3: ["1-month"],
+                4: ["0-month"],
+                5: ["0-month"],
+                6: ["0-month"],
+                7: ["0-month"],
+                8: ["0-month"],
+                9: ["0-month"],
+                10: ["0-month"],
+                11: ["5-month"],
+                12: ["4-month"],
+            },
+            2: {
+                1: ["3-month","2-month"],
+                2: ["2-month","1-month"],
+                3: ["1-month","0-month"],
+                4: ["0-month"],
+                5: ["0-month"],
+                6: ["0-month"],
+                7: ["0-month","2-month"],
+                8: ["0-month","1-month"],
+                9: ["0-month"],
+                10: ["0-month"],
+                11: ["5-month","0-month"],
+                12: ["4-month","0-month"],
+            },
+        },
+        "admin_level": 1,
+        "levels": [1],
+        "admin_zones":"uga_admin2.geojson",
+        "croping_zones_pcode":"uga_croping_zones_pcode.csv",
+        "EXPOSURE_DATA_SOURCES": {
+            "population_affected": {
+                "source": "population/hrsl_uga_pop_resized_100",
                 "rasterValue": 1,
             }
         },
@@ -183,9 +262,12 @@ SETTINGS = {
 # Change this date only in case of specific testing purposes
 
 
-CURRENT_DATE = date.today()
-#CURRENT_DATE=date.today() - timedelta(31) # to use last month forecast
+#CURRENT_DATE = date.today()
+
+CURRENT_DATE=date.today() - timedelta(30) # to use last month forecast
 CURRENT_Month = CURRENT_DATE.month
+
+
 ### define file path for ICPAC forecast
 now_month = CURRENT_DATE + relativedelta(months=-1)
 one_months = CURRENT_DATE + relativedelta(months=+0)
@@ -198,8 +280,12 @@ Now_Month_nummeric = now_month.strftime("%m")
 
 CURRENT_Year = date.today().year
 
-file_name = f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}"
+file_name = f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}" #file_name = 'Jun-Aug_May2022'
+
+
 year_month = f"{CURRENT_Year}{Now_Month_nummeric}"
+
+
 
 
 
@@ -213,11 +299,16 @@ TRIGGER_LEVELS = {"minimum": 0.6, "medium": 0.7, "maximum": 0.8}
 ###################
 ## PATH SETTINGS ##
 ###################
-NDRMC_BULLETIN_FILE_PATH = "https://www.ndma.go.ke/index.php/resource-center/national-drought-bulletin/send/39-drought-updates/6312-national-monthly-drought-updates-january-2022"
-RASTER_DATA = "data/raster/"
+MAIN_DIRECTORY='/home/fbf/'
+
+#MAIN_DIRECTORY='C:/Users/ATeklesadik/OneDrive - Rode Kruis/Documents/documents/IBF_DROUGHT_PIPELINE/pipeline/'
+
+
+
+RASTER_DATA = MAIN_DIRECTORY+"data/raster/"
 RASTER_INPUT = RASTER_DATA + "input/"
 RASTER_OUTPUT = RASTER_DATA + "output/"
-PIPELINE_DATA = "data/other/"
+PIPELINE_DATA = MAIN_DIRECTORY+"data/other/"
 PIPELINE_INPUT = PIPELINE_DATA + "input/"
 PIPELINE_OUTPUT = PIPELINE_DATA + "output/"
 
@@ -243,7 +334,12 @@ Icpac_Forecast_FtpPath_Rain = (
 ## INPUT DATA SETTINGS ##
 #########################
 
+# set this true if KMD forecast is uploaded in input folder 
 
+KMD_FORECAST=False
+NDRMC_BULLETIN_FILE_PATH = "https://www.ndma.go.ke/index.php/resource-center/national-drought-bulletin/send/39-drought-updates/6599-national-monthly-drought-bulletin-august-2022"
+
+ 
 #####################
 ## ATTRIBUTE NAMES ##
 #####################

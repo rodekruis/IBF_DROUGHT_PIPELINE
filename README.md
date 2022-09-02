@@ -8,6 +8,8 @@ The pipeline consists of a series of Python scripts, which - if activated - are 
 - calculate affected population
 - and uploads the results to an instance of IBF-system's API.
 
+Data required to run this pipeline is stored [510 Datalack] https://datacatalog.510.global/dataset/input-for-drought-data-pipeline and this data will be downloaded  while building the docker image 
+
 ## Methods for running this pipeline
 
 This pipeline is preconfigured to run in 3 different ways:
@@ -36,7 +38,7 @@ Getting its secrets from Github Secrets.
 - Add Github secrets in Settings > Secrets of the forked repository: `https://github.com/<your-github-account>/IBF_DROUGHT_PIPELINE/settings/secrets/actions`
   - Add the same 6 secrets as mentioned in the local scenario above.
 - The Github action is already scheduled to run daily at a specific time. So wait until that time has passed to test that the pipeline has run correctly.
-  - This time can be seen and changed if needed in the 'on: schedule:' part of [floodmodel.yml](.github/workflows/floodmodel.yml), where e.g. `cron:  '0 8 * * *'` means 8:00 AM UTC every day.
+  - This time can be seen and changed if needed in the 'on: schedule:' part of [drought.yml](.github/workflows/droughtdmodel.yml), where e.g. `cron:  '0 8 * * *'` means 8:00 AM UTC every day.
 - Check the IBF-system's dashboard to see if data is upload as expected
 
 
