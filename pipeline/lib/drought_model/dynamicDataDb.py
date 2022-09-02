@@ -37,7 +37,7 @@ class DatabaseManager:
         #self.uploadTriggerPerStation()
         self.uploadCalculatedAffected()
         self.uploadCalculatedDynamicIndicators()
-        #self.uploadRasterFile()
+        self.uploadRasterFile()
     
     def sendNotification(self):
         leadTimes = SETTINGS[self.countryCodeISO3]['lead_times']
@@ -98,7 +98,7 @@ class DatabaseManager:
                     
     def uploadRasterFile(self):
         disasterType = self.getDisasterType()
-        rasterFile = RASTER_OUTPUT + '0/flood_extents/flood_extent_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + '.tif'
+        rasterFile = RASTER_OUTPUT + 'rain_rp_' + self.leadTimeLabel + '_' + self.countryCodeISO3 + '.tif'
         files = {'file': open(rasterFile,'rb')}
         self.apiPostRequest('admin-area-dynamic-data/raster/' + disasterType, files=files)
         logger.info(f'Uploaded raster-file: {rasterFile}')
@@ -153,7 +153,7 @@ class DatabaseManager:
     def apiAuthenticate(self):
         API_LOGIN_URL=self.API_SERVICE_URL+'user/login'        
         login_response = requests.post(API_LOGIN_URL, data=[(
-            'email', ADMIN_LOGIN), ('password',  self.ADMIN_PASSWORD)])
+            'email', ADMIN_LOGIN), ('password',  ADMIN_PASSWORD)])
         return login_response.json()['user']['token']
 
     def getDataFromDatalake(self, path):

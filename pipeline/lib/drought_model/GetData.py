@@ -35,24 +35,28 @@ class GetData:
         self.leadTimeValue = leadTimeValue
         self.countryCodeISO3 = countryCodeISO3
         self.admin_level=admin_level
-        self.inputPath = PIPELINE_DATA+'input/'
+        self.ADMIN_AREA_GDF = admin_area_gdf
+        self.PIPELINE_OUTPUT = PIPELINE_OUTPUT
+        self.PIPELINE_INPUT = PIPELINE_INPUT
         
-        self.TRIGGER_PROB = SETTINGS[countryCodeISO3]["TRIGGER_PROBABILITY"]
-        self.TRIGGER_PROBABILITY_RAIN = SETTINGS[countryCodeISO3]["TRIGGER_rain_prob_threshold"][0] 
-        self.triggger_prob=SETTINGS[countryCodeISO3]["TRIGGER_rain_prob_threshold"][1]
-        self.SPI_Threshold_Prob=SETTINGS[countryCodeISO3]["SPI_Threshold_Prob"]          
+        
+        self.TRIGGER_PROB = SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_PROBABILITY"]
+        self.TRIGGER_PROBABILITY_RAIN = SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"][0] 
+        self.triggger_prob=SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"][1]
+        self.SPI_Threshold_Prob=SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["SPI_Threshold_Prob"]          
  
         
     
-        self.outputPath = PIPELINE_DATA+'input/'
-        self.spiforecast=PIPELINE_DATA+'input/ond_forecast.csv'
+        #self.outputPath = PIPELINE_DATA+'input/'
         
-        self.ADMIN_AREA_GDF = admin_area_gdf
-        self.FILE_PATH=NDRMC_BULLETIN_FILE_PATH
+        self.spiforecast=PIPELINE_INPUT+'ond_forecast.csv'   
+        self.FILE_PATH=NDRMC_BULLETIN_FILE_PATH 
         
         self.population_df=population_total
+        
         self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
         self.EXPOSURE_DATA_SOURCES= SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
+
         self.Icpac_Forecast_FtpPath = Icpac_Forecast_FtpPath
         self.Icpac_Forecast_FilePath = Icpac_Forecast_FilePath
         self.Icpac_Forecast_FtpPath_Rain = Icpac_Forecast_FtpPath_Rain
@@ -64,10 +68,7 @@ class GetData:
         
         self.output_filepath=Icpac_Forecast_FilePath_Rain#PIPELINE_DATA+'input/'+ftp_file_path.split('/')[-1]  
         
-        if not os.path.exists(self.inputPath):
-            os.makedirs(self.inputPath)
-        if not os.path.exists(self.inputPath):
-            os.makedirs(self.inputPath)
+ 
         self.current_date = CURRENT_DATE.strftime('%Y%m%d')
 
     def processing(self):
@@ -75,8 +76,10 @@ class GetData:
         spi_data=self.get_spi_data()        
         #drought_indicators=self.read_bulletin()
         df=self.population_df
+        
         df_spi = pd.merge(df,spi_data, how="left", on="placeCode")        
         df_spi['trigger']=df_spi['trigger'].fillna(0)
+        
         df_spi['population_affected']=df_spi[['value','trigger']].apply(self.affected_people, axis="columns")
        
         return df_spi
@@ -185,7 +188,7 @@ class GetData:
                     clim_prob=[items.split("=")[1] for items in cpt_items if  items.split("=")[0]==' cpt:clim_prob'][0]
 
 
-        file_name= self.outputPath + '/' + 'spi_forecast.csv'        
+        file_name= self.PIPELINE_INPUT + 'spi_forecast.csv'        
         df = pd.DataFrame(data, index =None, columns =['Lon','Lat','precipitation','clim_prob'])
         df_1=df.query('clim_prob=={}'.format(self.SPI_Threshold_Prob)) 
         geometry=[Point(xy) for xy in zip(df_1.iloc[:,1], df_1.iloc[:,0])]
@@ -197,7 +200,7 @@ class GetData:
         rainforecast.to_csv(file_name)
         return rainforecast
         
-    def process_icpac_data():
+    def process_icpac_data(self,):
         ####  admin boundary shape file 
         admin_df =self.ADMIN_AREA_GDF  
         forecast_data =rioxarray.open_rasterio(self.output_filepath)

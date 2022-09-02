@@ -2,7 +2,7 @@ from drought_model.exposure import Exposure
 from drought_model.GetData import GetData
 from drought_model.getdataethiopia import ICPACDATA
 from drought_model.hotspotclass import HOTSPOTCLASS
-from drought_model.ipcclass import IPCCLASS
+#from drought_model.ipcclass import IPCCLASS
 
 
 from drought_model.dynamicDataDb import DatabaseManager
@@ -38,19 +38,35 @@ class Forecast:
         self.levels = SETTINGS[countryCodeISO3]['levels']
 
         admin_area_json = self.db.apiGetRequest('admin-areas/raw',countryCodeISO3=countryCodeISO3)
+        
+        ########## a quick fix to re generate placecode
+        if self.countryCodeISO3 =='ETH':
+            countrycode="ET"
+            lenpcode=-4
+        elif self.countryCodeISO3 =='KEN':
+            countrycode="KE"
+            lenpcode=-3
+        elif self.countryCodeISO3 =='UGA':
+            countrycode="UG"
+            lenpcode=-3
+        else :
+            countrycode=self.countryCodeISO3 
+            
+            
 
         #print(admin_area_json)
         for index in range(len(admin_area_json)):
             admin_area_json[index]['geometry'] = admin_area_json[index]['geom']
             admin_area_json[index]['properties'] = {
                 'placeCode': admin_area_json[index]['placeCode'], 
+                'ind': admin_area_json[index]['placeCode'][lenpcode:], 
                 'placeCodeParent': admin_area_json[index]['placeCodeParent'],                   
                 'name': admin_area_json[index]['name'],
                 'adminLevel': admin_area_json[index]['adminLevel']
                 }
                 
         df_admin=pd.DataFrame(admin_area_json) 
-        df_admin2=df_admin.filter(['adminLevel','placeCode','placeCodeParent'])
+        df_admin2=df_admin.filter(['adminLevel','placeCode','placeCodeParent','ind'])
         df_list={}       
         max_iteration=self.admin_level+1
         for adm_level in self.levels:
@@ -89,5 +105,5 @@ class Forecast:
         
         self.getdata_eth = ICPACDATA(self.leadTimeLabel,self.leadTimeValue,self.SEASON,TRIGGER_SCENARIO,self.admin_area_gdf,self.population_total_pcode, self.countryCodeISO3,self.admin_level)
         self.getdata = GetData(self.leadTimeLabel,self.leadTimeValue,self.admin_area_gdf,self.population_total, self.countryCodeISO3,self.admin_level)
-        self.hotspot=HOTSPOTCLASS(self.countryCodeISO3)
-        self.ipc=IPCCLASS(self.countryCodeISO3)
+        self.hotspot=HOTSPOTCLASS(self.countryCodeISO3) 
+        #self.ipc=IPCCLASS(self.countryCodeISO3)
