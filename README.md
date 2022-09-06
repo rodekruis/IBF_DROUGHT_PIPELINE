@@ -3,8 +3,8 @@
 This pipeline is creating and uploading forecast data to the [IBF-system](https://github.com/rodekruis/IBF-system). This means that to set this pipeline up meaningfully, you must also set up an instance of the IBF-system.
 
 The pipeline consists of a series of Python scripts, which - if activated - are supposed to run Monthly, to:
-- extract relevant forecast input data
-- transform them to create drought outlook
+- extract relevant forecast input data, Currently working with ICPAC seasonal forecast
+- transform them to create drought outlook. Calculate SPI
 - calculate affected population
 - and uploads the results to an instance of IBF-system's API.
 
