@@ -1,4 +1,4 @@
-name: Docker
+name: Manual update drought-iarp Docker image
 
 on:
   workflow_dispatch:
