@@ -11,39 +11,44 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
  
+import datetime
+
 
 class DatabaseManager:
 
     """ Class to upload and process data in the database """
 
-    def __init__(self, leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level):
+    def __init__(self, leadTimeLabel,leadTimeValue, countryCodeISO3,admin_level,SEASON):
         self.countryCodeISO3 = countryCodeISO3
+        self.SEASON = SEASON
         self.leadTimeLabel = leadTimeLabel
-        self.leadTimeValue =leadTimeValue
+        self.leadTimeValue =leadTimeValue =leadTimeValue
+        self.PIPELINE_OUTPUT = PIPELINE_OUTPUT  
         self.triggerFolder = PIPELINE_OUTPUT + "triggers_rp_per_station/"
-        self.affectedFolder = PIPELINE_OUTPUT + "calculated_affected/"
-        
+        self.affectedFolder = PIPELINE_OUTPUT + "calculated_affected/"        
         self.EXPOSURE_DATA_SOURCES = SETTINGS[countryCodeISO3]['EXPOSURE_DATA_SOURCES']
-        self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']
         
+        self.DYNAMIC_INDICATORS= SETTINGS[countryCodeISO3]['DYNAMIC_INDICATORS']        
         self.API_SERVICE_URL =SETTINGS[countryCodeISO3]['IBF_API_URL']
         self.ADMIN_PASSWORD = SETTINGS[countryCodeISO3]['PASSWORD']
         self.levels = SETTINGS[countryCodeISO3]['levels']
         self.admin_level = admin_level
-
+        
+        current_time = datetime.datetime.now()
+        
+        self.uploadTime = current_time.strftime("%Y-%m-%dT%H:%M:%SZ")        
 
     def upload(self):
         self.uploadalerTreshold()
-        #self.uploadTriggerPerStation()
         self.uploadCalculatedAffected()
-        self.uploadCalculatedDynamicIndicators()
         self.uploadRasterFile()
-    
-    def sendNotification(self):
-        leadTimes = SETTINGS[self.countryCodeISO3]['lead_times']
-        max_leadTime = max(leadTimes, key=leadTimes.get)
 
-        if SETTINGS[self.countryCodeISO3]["notify_email"] and self.leadTimeLabel == max_leadTime:
+
+    def sendNotification(self,leadTime):
+        #leadTimes = SETTINGS[self.countryCodeISO3]['lead_times']
+        #max_leadTime = max(leadTimes, key=leadTimes.get)
+
+        if SETTINGS[self.countryCodeISO3]["notify_email"] and leadTime >0:
             body = {
                 'countryCodeISO3': self.countryCodeISO3,
                 'disasterType': self.getDisasterType()
@@ -54,7 +59,6 @@ class DatabaseManager:
     def getDisasterType(self):
         disasterType = 'drought'
         return disasterType
-
 
     def uploadCalculatedDynamicIndicators(self):
         for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
@@ -74,24 +78,47 @@ class DatabaseManager:
         for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):            
             for indicator, values in self.EXPOSURE_DATA_SOURCES.items():
                 try:
-                    with open(self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json') as json_file:
+                    filePath= self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + f'_{self.SEASON}' + '.json'
+                    with open(filePath) as json_file:
                         body = json.load(json_file)
                         body['disasterType'] = self.getDisasterType()
+                        body['date'] = self.uploadTime
                         #body['adminLevel'] = self.admin_level
                         self.apiPostRequest('admin-area-dynamic-data/exposure', body=body)
                     logger.info(f'Uploaded calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
                 except:
                     logger.info(f'failed to Upload calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))
-                    pass                                   
-                    
-
+                    pass     
+  
+    def uploadipc(self):
+        for indicator in ["IPC_forecast_long"]: #PIPELINE_OUTPUT
+            statsPath = (
+                    self.PIPELINE_OUTPUT
+                    + "dynamic_indicators/indiator_"
+                    + "_"
+                    + self.countryCodeISO3
+                    + "_admin_"
+                    + str(self.admin_level)
+                    + "_"
+                    + indicator
+                    + ".json"
+                )
+            with open(statsPath) as json_file:
+                body = json.load(json_file)
+            body['disasterType'] = self.getDisasterType()
+            #body['date'] = self.uploadTime
+            self.apiPostRequest('admin-area-data/upload/json', body=body)
+            logger.info(f'Uploaded ipc class data for indicator: {indicator}')     
+  
+                                        
     def uploadalerTreshold(self):
         indicator='alert_threshold'
-        for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1): 
-            trigger_file_path=self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + '.json'
+        for adminlevels in SETTINGS[self.countryCodeISO3]['levels']:#range(1,self.admin_level+1):  
+            trigger_file_path=self.affectedFolder +'affected_' + str(self.leadTimeValue) + '_' + self.countryCodeISO3 + '_admin_' + str(adminlevels) + '_' + indicator + f'_{self.SEASON}' + '.json'
             with open(trigger_file_path) as json_file:
                 body = json.load(json_file)
                 body['disasterType'] = self.getDisasterType()
+                body['date'] = self.uploadTime
                 #body['adminLevel'] = self.admin_level
                 self.apiPostRequest('admin-area-dynamic-data/exposure', body=body)
             logger.info(f'Uploaded calculated_affected for indicator: {indicator}' +'for admin level: ' + str(adminlevels))                                
@@ -118,6 +145,7 @@ class DatabaseManager:
                 'triggersPerLeadTime': triggersPerLeadTime
             }
             body['disasterType'] = self.getDisasterType()
+            body['date'] = self.uploadTime
             self.apiPostRequest('event/triggers-per-leadtime', body=body)
         logger.info('Uploaded triggers per leadTime')
 
@@ -130,7 +158,23 @@ class DatabaseManager:
         )
         data = response.json()
         return(data)
+    
+    def apiGetRequestDate(self, countryCodeISO3,disasterType):
+        from dateutil.parser import parse 
+        TOKEN = self.apiAuthenticate()
+        
+        path=f'event/recent-date/{countryCodeISO3}/{disasterType}'
 
+        response = requests.get(
+            self.API_SERVICE_URL + path ,
+            headers={'Authorization': 'Bearer ' + TOKEN}
+        )
+        data = response.json()
+        # parse the date from the string
+        getRecentDate = parse(data['date'], fuzzy=True)
+
+        return(getRecentDate)
+    
     def apiPostRequest(self, path, body=None, files=None):
         TOKEN = self.apiAuthenticate()
 

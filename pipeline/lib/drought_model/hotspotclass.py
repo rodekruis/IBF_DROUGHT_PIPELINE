@@ -24,7 +24,8 @@ try:
     from drought_model.secrets import *
 except ImportError:
     print("No secrets file found.")
-
+import logging
+logger = logging.getLogger(__name__)
 
 class HOTSPOTCLASS:
     def __init__(
@@ -85,10 +86,10 @@ class HOTSPOTCLASS:
             left_on="ADM3_PCODE",
             right_on="ADM3_PCODE",
         ) 
-        url = IBF_API_URL + "/api/admin-area-data/upload/json"
+        url = IBF_API_URL + "admin-area-data/upload/json"
         # login
         login_response = requests.post(
-            f"{IBF_API_URL}/api/user/login",
+            f"{IBF_API_URL}user/login",
             data=[("email", ADMIN_LOGIN), ("password", ADMIN_PASSWORD)],
         )
         token = login_response.json()["user"]["token"]
@@ -141,7 +142,9 @@ class HOTSPOTCLASS:
                     headers={
                         "Authorization": "Bearer " + token,
                         "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    },
+                        "Accept": "application/json",},
                 )
-                print(upload_response)
+                
+                logger.info(f'{upload_response}') 
+ 
+            logger.info(f'Uploaded hotspot class data for indicator: {indicator}')

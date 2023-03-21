@@ -5,8 +5,8 @@ FROM ubuntu:18.04
 ENV PYTHONUNBUFFERED=1 
  
 
-RUN mkdir --parents /home/ibf
-ENV HOME /home/ibf
+RUN mkdir --parents /home/fbf
+ENV HOME /home/fbf
 WORKDIR $HOME
 
 RUN apt-get update && apt-get install -y \
@@ -63,7 +63,7 @@ RUN python3 -m pip install --no-cache-dir \
 
 
 # install dependencies
-COPY requirements.txt /home/ibf
+COPY requirements.txt /home/fbf
 RUN pip install --no-cache-dir -r requirements.txt
 
 

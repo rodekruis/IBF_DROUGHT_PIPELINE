@@ -16,6 +16,7 @@ from geocube.api.core import make_geocube
 
 #from datetime import datetime
 import datetime as dt
+from dateutil.relativedelta import relativedelta
 import re
 import json
 import logging
@@ -70,71 +71,46 @@ class ICPACDATA:
         
         self.admin_level = SETTINGS[self.countryCodeISO3]['admin_level']
         self.RASTER_OUTPUT = RASTER_OUTPUT
+        self.RASTER_INPUT = RASTER_INPUT
         self.population_df = population_total
-        #self.ADMIN_LOGIN=ADMIN_LOGIN 
+
         self.IBF_API_URL=SETTINGS[self.countryCodeISO3]["IBF_API_URL"]
         self.ADMIN_PASSWORD=SETTINGS[self.countryCodeISO3]["PASSWORD"]
-        self.ADMIN_LOGIN=SETTINGS[self.countryCodeISO3]["ADMIN_LOGIN"]
-  
+        self.ADMIN_LOGIN=SETTINGS[self.countryCodeISO3]["ADMIN_LOGIN"] 
         
-        self.Icpac_Forecast_FtpPath = Icpac_Forecast_FtpPath
-        self.Icpac_Forecast_FilePath = Icpac_Forecast_FilePath
-        self.Icpac_Forecast_FtpPath_Rain = Icpac_Forecast_FtpPath_Rain
-        self.Icpac_Forecast_FilePath_Rain = Icpac_Forecast_FilePath_Rain
-
         self.ICPAC_FTP_ADDRESS = ICPAC_FTP_ADDRESS
         self.ICPAC_FTP_USERNAME = ICPAC_FTP_USERNAME
-        self.ICPAC_FTP_PASSWORD = ICPAC_FTP_PASSWORD
-        
+        self.ICPAC_FTP_PASSWORD = ICPAC_FTP_PASSWORD        
         self.PIPELINE_OUTPUT = PIPELINE_OUTPUT
-        self.PIPELINE_INPUT = PIPELINE_INPUT
-        
-      
+        self.PIPELINE_INPUT = PIPELINE_INPUT  
         self.spiforecast=PIPELINE_INPUT+'ond_forecast.csv'   
         self.FILE_PATH=NDRMC_BULLETIN_FILE_PATH 
         
-        ### Trigger levels 
 
-        self.TRIGGER_threshold = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_threshold"][0]
         self.EXPOSURE_DATA_SOURCES = SETTINGS[self.countryCodeISO3][
             "EXPOSURE_DATA_SOURCES"
         ]
         self.DYNAMIC_INDICATORS = SETTINGS[self.countryCodeISO3]["DYNAMIC_INDICATORS"]
-        self.TRIGGER_threshold_percentage = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_threshold"][1]
-        self.TRIGGER_rain_prob_threshold = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"][0]
+        
+        ### Trigger levels 
+          
+ 
+        
+        self.TRIGGER_rain_prob_threshold = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"]
         self.SPI_Threshold_Prob = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS']["SPI_Threshold_Prob"]
         self.TRIGGER_rain_prob_threshold_percentage = SETTINGS[self.countryCodeISO3]['TRIGGER_LEVELS'][
-            "TRIGGER_rain_prob_threshold"
-        ][1]
+            "TRIGGER_rain_prob_threshold_percentage"]
+        self.TRIGGER_PROB = SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_PROBABILITY"]
 
         croping_zones_pcode = PIPELINE_INPUT + SETTINGS[self.countryCodeISO3]["croping_zones_pcode"]#"eth_croping_zones_pcode.csv"
+        #croping_zones_pcode = PIPELINE_INPUT + f'{self.countryCodeISO3}_croping_zones.csv'
         crop_df = pd.read_csv(croping_zones_pcode)
 
-        self.TRIGGER_PROB = SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_PROBABILITY"]
-        self.TRIGGER_PROBABILITY_RAIN = SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"][0] 
-        self.triggger_prob=SETTINGS[countryCodeISO3]['TRIGGER_LEVELS']["TRIGGER_rain_prob_threshold"][1]
-           
- 
         
- 
-     
-        self.ADMIN_AREA_GDF = admin_area_gdf
         
-        #logger.info("downloading admin area via api didnt work: reading admin boundery from file")
-        #admin_zones = PIPELINE_INPUT + SETTINGS[self.countryCodeISO3]["admin_zones"]#"eth_admin2.geojson"
-        #admin_area_gdf =gpd.read_file(admin_zones)  # fc.admin_area_gdf
-        
-       
+   
+        self.ADMIN_AREA_GDF = admin_area_gdf   
         self.levels = SETTINGS[countryCodeISO3]["levels"]
- 
-        self.CURRENT_Year=CURRENT_Year
-        self.Now_Month_nummeric=Now_Month_nummeric       
-
-        #admin_woreda_eth = self.PIPELINE_INPUT + "ETH_adm3.geojson"
-        #self.eth_admin = admin_area_gdf# gpd.read_file(admin_woreda_eth)  # fc.admin_area_gdf
- 
-            
- 
 
         admin_df = pd.merge(
             admin_area_gdf,
@@ -157,16 +133,78 @@ class ICPACDATA:
         admin_df["cropzone"] = admin_df.Crop_group.astype(int)
 
         self.admin_df = admin_df.copy()
-        self.downloadforecast()
+        self.Debug_flag = Debug_flag
+        
+        ftp_base_dir=self.downloadforecast()
+        
+        if not ftp_base_dir and self.Debug_flag:
+            ftp_base_dir='202210'
+ 
+        
+        self.current_icpac_forecast=ftp_base_dir
+        Avilable_CURRENT_DATE=dt.datetime.strptime(ftp_base_dir, '%Y%m') # - timedelta(30) # to use last month forecast    
+        
+        delta = dt.datetime.now()  - Avilable_CURRENT_DATE        
+        delta_forecast_leadtime=delta.days #differnce between the two variabels 
+        
+
+        Avilable_CURRENT_Month = Avilable_CURRENT_DATE.month
+        CURRENT_Year = Avilable_CURRENT_DATE.year        
+        forecast_month_range=int(self.leadTimeLabel.split('-')[0])       
+        
+        if forecast_month_range==0:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")   
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+1) 
+            One_Month = one_months.strftime("%b")
+                     
+            file_name = f"{One_Month}_{Now_Month}{CURRENT_Year}"
+        elif forecast_month_range==1:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")     
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+1)       
+            three_months = Avilable_CURRENT_DATE + relativedelta(months=+3)
+            
+            One_Month = one_months.strftime("%b")
+            Three_Month = three_months.strftime("%b")
+           
+  
+
+            file_name =f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}" 
+        elif forecast_month_range >= 2:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")     
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+2)       
+            three_months = Avilable_CURRENT_DATE + relativedelta(months=+4)
+            
+            One_Month = one_months.strftime("%b")
+            Three_Month = three_months.strftime("%b")
+     
+ 
+
+            file_name =f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}"      
+
+        self.Icpac_Forecast_FilePath = RASTER_INPUT + "ICPAC/" + f"PredictedProbabilityRain_{file_name}.nc"    
+        self.Icpac_Forecast_FilePath_Rain = RASTER_INPUT + "ICPAC/" + f"PredictedRain_{file_name}.nc" 
+        
+        self.Avilable_CURRENT_DATE=Avilable_CURRENT_DATE
+ 
+        self.Icpac_prob_file = f"PredictedProbabilityRain_{file_name}.nc"
+        self.Icpac_rain_file = f"PredictedRain_{file_name}.nc"       
+        
+  
+        
 
     def downloadforecast(self):
         try:
-            self.retrieve_icpac_forecast_ftp()
+           ftp_base_dir=self.retrieve_icpac_forecast_ftp()
         except:
             logger.error(" ICPAC FTP ERROR")
+            ftp_base_dir=None
             pass
+        #ftp_base_dir2='202208'
+        return ftp_base_dir
+    
 
-    def processing(self):
+    def processing(self):       
+   
         logger.info("processing rain data")
         
         spi_data = self.process_rain_total_icpac()
@@ -189,13 +227,11 @@ class ICPACDATA:
         )
         
         df_spi.to_csv(profile_name)
-
         return df_spi
+    
 
     def processing_kenya(self):
-
-        spi_data=self.get_spi_data_kenya()  
-        
+        spi_data=self.get_spi_data_kenya()         
         df=self.population_df        
         df_spi = pd.merge(df,spi_data, how="left", on="placeCode")        
         
@@ -453,10 +489,8 @@ class ICPACDATA:
         }
 
     def process_rain_total_icpac(self):
-
+        
         admin_df = self.admin_df
-        prediction_data = CURRENT_DATE.strftime("%Y-%m-01")
-
         df_prediction_raw = (
             xr.open_dataset(self.Icpac_Forecast_FilePath_Rain, decode_times=False)
             .rename({"lat": "y", "lon": "x"})
@@ -465,20 +499,22 @@ class ICPACDATA:
         df_prediction_ = df_prediction_raw.rio.clip_box(
             minx=self.min_lon, miny=self.min_lat, maxx=self.max_lon, maxy=self.max_lat
         )
-
-        # save rainfall data to geotiff
-
+        
         total_rain_forecast = (
             self.RASTER_OUTPUT
-            + f"rainfall_extent_{self.leadTimeValue}_"
+            + "rain_rp_"
+            + str(self.leadTimeValue)
+            + "_"
             + self.countryCodeISO3
             + ".tif"
         )
+        
         df_prediction_raw["prec"].rio.to_raster(total_rain_forecast)
 
         precipitation = df_prediction_[
             "prec"
         ]  # df_prediction_raw['below'].rio.clip(admin_df.geometry.values, admin_df.crs, from_disk=True).sel(band=1).drop("band")
+        
         precipitation.name = "precipitation"
 
         ####
@@ -487,114 +523,8 @@ class ICPACDATA:
 
         # make sure we have the arrays with time as the inner-most dimension
         preferred_dims = ("lat", "lon")  # , "time")
-        df_prediction_ = df_prediction_.transpose(*preferred_dims)
-
-        historical_rain_data = RASTER_INPUT + "CHIRPS/chirps-*.tif"
-        geotiff_list = glob.glob(historical_rain_data)
-
-        historical_rain_data_dir = RASTER_INPUT + "CHIRPS/"
-
-        geotiff_list_ = [
-            f
-            for f in listdir(historical_rain_data_dir)
-            if isfile(join(historical_rain_data_dir, f))
-        ]
-
-        time_var = xr.Variable(
-            "time",
-            [
-                dt.datetime.strptime(items.split("-")[-1][5:12], "%Y.%m")
-                for items in geotiff_list_
-            ],
-        )
-
-        geotiffs_da = xr.concat(
-            [self.open_clip_tiff(i, df_prediction_) for i in geotiff_list], dim=time_var
-        )
-        geotiffs_ds = geotiffs_da.to_dataset(name="prec")
-
-        df_prediction_1 = xr.concat(
-            [
-                df_prediction_["prec"] / 3,
-                df_prediction_["prec"] / 3,
-                df_prediction_["prec"] / 3,
-            ],
-            dim="time",
-        )
-        df_prediction_1["time"] = pd.date_range(
-            start=prediction_data, periods=3, freq="M"
-        )
-        preferred_dims = ("lat", "lon", "time")
-
-        observation = geotiffs_ds["prec"].transpose(*preferred_dims)
-
-        # create one time sereies
-        data3 = xr.concat([observation, df_prediction_1], dim="time")
-
-        data_icpac = data3  # .rename({"y": "lat","x":"lon"})
-        # make sure we have the arrays with time as the inner-most dimension
-
-        data_icpac = data_icpac.transpose(*preferred_dims)
-        data_icpac["time"] = pd.date_range(
-            start=data_icpac["time"][0].values,
-            periods=len(data_icpac["time"].values),
-            freq="M",
-        )
-
-        data_arrays = {"rain": data_icpac}
-
-        for label, da in data_arrays.items():
-            if da["lat"][0] > da["lat"][1]:
-                print(
-                    f"The {label}-resolution DataArray's lats are descending -- flipping"
-                )
-                da["lat"] = np.flip(da["lat"])
-            if da["lon"][0] > da["lon"][1]:
-                print(
-                    f"The {label}-resolution DataArray's lons are descending -- flipping"
-                )
-                da["lon"] = np.flip(da["lon"])
-
-        da_precip_lo = data_arrays["rain"]
-
-        initial_year = int(da_precip_lo["time"][0].dt.year)
-
-        scale_months = 3
-
-        icpac_spi_data = self.apply_spi_gamma_monthly(
-            data_array=da_precip_lo,
-            months=3,
-            data_start_year=2000,
-            calibration_year_initial=2000,
-            calibration_year_final=2020,
-        )
-
-        icpac_spi = icpac_spi_data.transpose("lat", "lon", "time")
-        icpac_spi = icpac_spi.to_dataset(name="spi3").rename({"lon": "x", "lat": "y"})
-        # icpac_spi.rename({"lon": "x", "lat": "y"})
-
-        # SPI for the
-
-        spi_data = icpac_spi.isel(time=[-1])
-        spi = spi_data["spi3"]
-
-        # make your geo cube
-        out_grid = make_geocube(
-            vector_data=admin_df,
-            measurements=["pcode", "cropzone"],
-            like=spi,  # ensure the data are on the same grid
-        )
-        # spi.rename({'lon':'x','lat':'y'})
-
-        #
-
-        spi1 = spi.where(spi < self.TRIGGER_threshold)
-
-        out_grid["spi"] = (spi1.dims, spi1.values, spi1.attrs, spi1.encoding)
-
-        zonal_stats_df = (
-            out_grid.groupby(out_grid.pcode).count().to_dataframe().reset_index()
-        )
+        df_prediction_ = df_prediction_.transpose(*preferred_dims)       
+    
         ########## a quick fix to re generate placecode
         if self.countryCodeISO3 =='ETH':
             countrycode="ET"
@@ -608,67 +538,6 @@ class ICPACDATA:
         else :
             countrycode=self.countryCodeISO3        
         
-        
-
-        zonal_stats_df["placeCode"] = zonal_stats_df.apply(
-            lambda row: countrycode + str(int(row.pcode)).zfill(lenpcode), axis=1
-        )
-        zonal_stats_df["percentage"] = zonal_stats_df.apply(
-            lambda row: 100 * (int(row.spi) / int(row.cropzone)), axis=1
-        )
-        zonal_stats_df.loc[
-            zonal_stats_df["percentage"] >= self.TRIGGER_threshold_percentage,
-            "Trigger_threshold_spi",
-        ] = 1
-        zonal_stats_df.loc[
-            zonal_stats_df["percentage"] < self.TRIGGER_threshold_percentage,
-            "Trigger_threshold_spi",
-        ] = 0
-
-        spi_data = icpac_spi.isel(time=[-4])
-        spi = spi_data["spi3"]
-
-        # merge the two together
-
-        spi_obs = spi.where(spi < self.TRIGGER_threshold)
-
-        out_grid["spi"] = (
-            spi_obs.dims,
-            spi_obs.values,
-            spi_obs.attrs,
-            spi_obs.encoding,
-        )
-        zonal_stats_df_obs = (
-            out_grid.groupby(out_grid.pcode).count().to_dataframe().reset_index()
-        )
-
-        zonal_stats_df_obs["placeCode"] = zonal_stats_df_obs.apply(
-            lambda row: countrycode + str(int(row.pcode)).zfill(lenpcode), axis=1
-        )
-        zonal_stats_df_obs["percentage"] = zonal_stats_df_obs.apply(
-            lambda row: 100 * (int(row.spi) / int(row.cropzone)), axis=1
-        )
-        zonal_stats_df_obs.loc[
-            zonal_stats_df_obs["percentage"] >= self.TRIGGER_threshold_percentage,
-            "Trigger_threshold_spi_obs",
-        ] = 1
-        zonal_stats_df_obs.loc[
-            zonal_stats_df_obs["percentage"] < self.TRIGGER_threshold_percentage,
-            "Trigger_threshold_spi_obs",
-        ] = 0
-
-        spifile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_SPI3_prediction.csv"
-        profile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_SPI3_observed.csv"
-        zonal_stats_df.to_csv(spifile_name)
-        zonal_stats_df_obs.to_csv(profile_name)
-
-        threshold_df_spi = pd.merge(
-            zonal_stats_df[["placeCode", "Trigger_threshold_spi"]],
-            zonal_stats_df_obs[["placeCode", "Trigger_threshold_spi_obs"]],
-            how="left",
-            left_on="placeCode",
-            right_on="placeCode",
-        )
 
         ########################################
         ############# probabilistic forecast ###
@@ -685,19 +554,25 @@ class ICPACDATA:
 
         below_rain_forecast = (
             self.RASTER_OUTPUT
-            + f"rain_rp_{self.leadTimeLabel}_"
+            + "rain_rp_"
+            + str(self.leadTimeValue)
+            + "_"
             + self.countryCodeISO3
             + ".tif"
         )
         normal_rain_forecast = (
             self.RASTER_OUTPUT
-            + f"rainfall_normal_{self.leadTimeLabel}_"
+            + "rainfall_normal_"
+            + str(self.leadTimeValue)
+            + "_"
             + self.countryCodeISO3
             + ".tif"
         )
         above_rain_forecast = (
             self.RASTER_OUTPUT
-            + f"rainfall_above_{self.leadTimeLabel}_"
+            + "rainfall_above_"
+            + str(self.leadTimeValue)
+            + "_"
             + self.countryCodeISO3
             + ".tif"
         )
@@ -717,6 +592,7 @@ class ICPACDATA:
         precipitation = precipitation.where(
             precipitation < self.TRIGGER_rain_prob_threshold
         )
+        
         out_grid_prob["below"] = (
             precipitation.dims,
             precipitation.values,
@@ -736,9 +612,11 @@ class ICPACDATA:
         zonal_stats_rain_prob_df["placeCode"] = zonal_stats_rain_prob_df.apply(
             lambda row: countrycode + str(int(row.pcode)).zfill(lenpcode), axis=1
         )
+        
         zonal_stats_rain_prob_df["percentage"] = zonal_stats_rain_prob_df.apply(
             lambda row: 100 * (int(row.below) / int(row.cropzone)), axis=1
         )
+        
         zonal_stats_rain_prob_df.loc[
             zonal_stats_rain_prob_df["percentage"]
             >= self.TRIGGER_rain_prob_threshold_percentage,
@@ -750,53 +628,31 @@ class ICPACDATA:
             < self.TRIGGER_rain_prob_threshold_percentage,
             "Trigger_threshold_below",
         ] = 0
+        
+        
         profile_name = (
             PIPELINE_OUTPUT + f"{self.countryCodeISO3}_below_average_prob.csv"
         )
+        
         zonal_stats_rain_prob_df.to_csv(profile_name)
 
-        threshold_df = pd.merge(
-            threshold_df_spi[
-                ["placeCode", "Trigger_threshold_spi", "Trigger_threshold_spi_obs"]
-            ],
-            zonal_stats_rain_prob_df[["placeCode", "Trigger_threshold_below"]],
-            how="left",
-            left_on="placeCode",
-            right_on="placeCode",
-        )
-        threshold_df["trigger_treshold_both"] = threshold_df.apply(
-            lambda row: (row.Trigger_threshold_below) * row.Trigger_threshold_spi,
-            axis=1,
-        )
+        threshold_df=zonal_stats_rain_prob_df.filter(["placeCode", "Trigger_threshold_below"])
+        
         threshold_df["trigger_treshold_one"] = threshold_df.apply(
-            lambda row: math.ceil(
-                0.5 * row.Trigger_threshold_below + 0.5 * row.Trigger_threshold_spi
-            ),
+            lambda row: math.ceil(row.Trigger_threshold_below),
             axis=1,
         )
+        
         profile_name = PIPELINE_OUTPUT + f"{self.countryCodeISO3}_thresholds.csv"
         threshold_df.to_csv(profile_name)
-
+ 
         return threshold_df
 
     def retrieve_icpac_forecast_ftp(
         self,
     ):
-        """
-        Download and save a file from ICPAC's ftp server.
-        Parameters
-        ----------
-        ftp_filepath : str
-            path on the server where the file is located
-        output_filepath : str
-            path to save the file to
-        Examples
-        --------
-        >>> retrieve_file_ftp(ftp_filepath=
-        ... '/SharedData/gcm/seasonal/202101/' \
-        ... 'PredictedRainfallProbbability-FMA2021_Jan2021.nc',
-        ... output_filepath='example.nc')
-        """
+        import datetime as dt
+        from dateutil.relativedelta import relativedelta
         ftp_address = self.ICPAC_FTP_ADDRESS
         ftp_username = self.ICPAC_FTP_USERNAME
         ftp_password = self.ICPAC_FTP_PASSWORD
@@ -812,11 +668,77 @@ class ICPACDATA:
             ftp_username=ftp_username,
             ftp_password=ftp_password,
         )
+        
+        ftps.cwd('/SharedData/gcm/seasonal')
+        
+        icpac_forecst=[fi for fi in ftps.nlst() if fi[:2]=='20']
+        icpac_forecst.sort(reverse=True)
+        ftp_base_dir=icpac_forecst[0]    
+        logger.info(f"ftp directory is {ftp_base_dir}")  
+        
+        Avilable_CURRENT_DATE=dt.datetime.strptime(ftp_base_dir, '%Y%m') # - timedelta(30) # to use last month forecast    
+        
+        delta = dt.datetime.now()  - Avilable_CURRENT_DATE        
+        self.delta_forecast_leadtime=delta.days #differnce between the two variabels 
+
+
+        #Avilable_CURRENT_Month = Avilable_CURRENT_DATE.month
+        CURRENT_Year = Avilable_CURRENT_DATE.year        
+        forecast_month_range=int(self.leadTimeLabel.split('-')[0])       
+
+        if forecast_month_range==0:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")   
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+1) 
+            One_Month = one_months.strftime("%b")
+                     
+            file_name = f"{One_Month}_{Now_Month}{CURRENT_Year}"
+        elif forecast_month_range==1:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")     
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+1)       
+            three_months = Avilable_CURRENT_DATE + relativedelta(months=+3)
+            
+            One_Month = one_months.strftime("%b")
+            Three_Month = three_months.strftime("%b")
+        
+ 
+
+            file_name =f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}" 
+        elif forecast_month_range >= 2:
+            Now_Month = Avilable_CURRENT_DATE.strftime("%b")     
+            one_months = Avilable_CURRENT_DATE + relativedelta(months=+2)       
+            three_months = Avilable_CURRENT_DATE + relativedelta(months=+4)
+            
+            One_Month = one_months.strftime("%b")
+            Three_Month = three_months.strftime("%b")
+ 
+ 
+
+            file_name =f"{One_Month}-{Three_Month}_{Now_Month}{CURRENT_Year}" 
+ 
+        logger.info(f"file_name is {file_name}")      
+
+        self.Icpac_Forecast_FilePath = RASTER_INPUT + "ICPAC/" + f"PredictedProbabilityRain_{file_name}.nc"    
+        self.Icpac_Forecast_FilePath_Rain = RASTER_INPUT + "ICPAC/" + f"PredictedRain_{file_name}.nc" 
+
+        self.Avilable_CURRENT_DATE=Avilable_CURRENT_DATE
+
+        self.Icpac_prob_file = f"PredictedProbabilityRain_{file_name}.nc"
+        self.Icpac_rain_file = f"PredictedRain_{file_name}.nc" 
+    
+       
+        Icpac_Forecast_FtpPath = (f"{ftp_base_dir}/"   + self.Icpac_prob_file
+        )
+
+        Icpac_Forecast_FtpPath_Rain = ( f"{ftp_base_dir}/" +  self.Icpac_rain_file
+        )
+ 
         with open(self.Icpac_Forecast_FilePath, "wb") as f:
-            ftps.retrbinary("RETR " + self.Icpac_Forecast_FtpPath, f.write)
+            ftps.retrbinary("RETR " + Icpac_Forecast_FtpPath, f.write)
 
         with open(self.Icpac_Forecast_FilePath_Rain, "wb") as f:
-            ftps.retrbinary("RETR " + self.Icpac_Forecast_FtpPath_Rain, f.write)
+            ftps.retrbinary("RETR " + Icpac_Forecast_FtpPath_Rain, f.write)
+        ftps.quit()
+        return ftp_base_dir
 
     def connect_icpac_ftp(
         self,
@@ -1072,13 +994,7 @@ class ICPACDATA:
             self.ADMIN_AREA_GDF, df2, how="left", left_on="placeCode", right_on="placeCode"
         )
         
-        url = self.IBF_API_URL + "admin-area-data/upload/json"
-        API_LOGIN_URL=self.IBF_API_URL+'user/login'
-        # login
-        login_response = requests.post(API_LOGIN_URL,
-            data=[("email", self.ADMIN_LOGIN), ("password", self.ADMIN_PASSWORD)],
-        )
-        token = login_response.json()["user"]["token"]
+
         
 
         for indicator in ["IPC_forecast_short", "IPC_forecast_long"]:  # df2.columns:
@@ -1117,7 +1033,18 @@ class ICPACDATA:
 
                 with open(statsPath, "w") as fp:
                     json.dump(exposure_data, fp)
-
+                    
+                '''
+                
+                url = self.IBF_API_URL + "admin-area-data/upload/json"
+                API_LOGIN_URL=self.IBF_API_URL+'user/login'
+                # login
+                login_response = requests.post(API_LOGIN_URL,
+                    data=[("email", self.ADMIN_LOGIN), ("password", self.ADMIN_PASSWORD)],
+                )
+                
+                token = login_response.json()["user"]["token"]
+        
                 upload_response = requests.post(
                     url,
                     json=exposure_data,
@@ -1127,8 +1054,10 @@ class ICPACDATA:
                         "Accept": "application/json",
                     },
                 )
+                
                 logger.info(f'{upload_response}')
                 
+                '''
     def read_bulletin(self):        
         dfs = tabula.read_pdf(self.FILE_PATH, pages='all',stream=True)
         dfs = [df for df in dfs if not df.empty]    
